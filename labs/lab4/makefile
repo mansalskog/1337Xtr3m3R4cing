@@ -1,10 +1,20 @@
 # set this variable to the director in which you saved the common files
 commondir = ../common/
+osname := $(shell uname)
+warnflags = -Wall -Wextra -Wno-deprecated-declarations -Wno-unused-variable -Wno-unused-parameter
+ifeq ($(osname),Darwin)
+	osname = Mac
+	linkflags = -framework Foundation -lobjc -framework OpenGl -framework GLUT -lm -framework CoreFoundation -framework ApplicationServices -framework IOKit -framework CoreServices -framework Cocoa -framework Carbon
+	included := $(commondir)GL_utilities.c $(commondir)VectorUtils3.c $(commondir)loadobj.c $(commondir)LoadTGA.c $(commondir)$(osname)/MicroGlut.m
+else
+	linkflags = -lXt -lX11 -lGL -lm
+	included := $(commondir)GL_utilities.c $(commondir)VectorUtils3.c $(commondir)loadobj.c $(commondir)LoadTGA.c $(commondir)$(osname)/MicroGlut.c
+endif
 
-all : lab4-1
+all: lab4-1
 
-lab4-1 : lab4-1.c $(commondir)GL_utilities.c $(commondir)VectorUtils3.c $(commondir)loadobj.c $(commondir)LoadTGA.c $(commondir)Linux/MicroGlut.c
-	gcc -Wall -o lab4-1 -I$(commondir) -I../common/Linux -DGL_GLEXT_PROTOTYPES lab4-1.c $(commondir)GL_utilities.c $(commondir)loadobj.c $(commondir)VectorUtils3.c $(commondir)LoadTGA.c $(commondir)Linux/MicroGlut.c -lXt -lX11 -lGL -lm
+%: %.c $(included)
+	gcc $(warnflags) -o $@ -I$(commondir) -I../common/$(osname) -DGL_GLEXT_PROTOTYPES $^ $(linkflags)
 
-clean :
+clean:
 	rm lab4-1
