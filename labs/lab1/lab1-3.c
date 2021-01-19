@@ -11,6 +11,8 @@
 	// Linking hint for Lightweight IDE
 	// uses framework Cocoa
 #endif
+#include <math.h>
+
 #include "MicroGlut.h"
 #include "GL_utilities.h"
 
@@ -21,6 +23,13 @@ GLfloat vertices[] =
 	-0.5f,-0.5f,0.0f,
 	-0.5f,0.5f,0.0f,
 	0.5f,-0.5f,0.0f
+};
+
+GLfloat myMatrix[] = {
+	1.0f, 0.0f, 0.0f, 0.5f,
+	0.0f, 1.5f, 0.0f, 0.0f,
+	0.0f, 0.0f, 1.0f, 0.0f,
+	0.0f, 0.0f, 0.0f, 1.0f
 };
 
 // vertex array object
@@ -41,7 +50,7 @@ void init(void)
 	printError("GL inits");
 
 	// Load and compile shader
-	program = loadShaders("lab1-1.vert", "lab1-1.frag");
+	program = loadShaders("lab1-3.vert", "lab1-3.frag");
 	printError("init shader");
 
 	// Upload geometry to the GPU:
@@ -58,10 +67,13 @@ void init(void)
 	glVertexAttribPointer(glGetAttribLocation(program, "in_Position"), 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(glGetAttribLocation(program, "in_Position"));
 
+	// End of upload of geometry
+
 	// Set triangle color to yellow
 	glUniform4f(glGetUniformLocation(program, "tri_Color"), 0.9, 0.9, 0.0, 1.0);
 
-	// End of upload of geometry
+	// Set the transformation matrix
+	glUniformMatrix4fv(glGetUniformLocation(program, "myMatrix"), 1, GL_TRUE, myMatrix);
 
 	printError("init arrays");
 }
@@ -69,7 +81,28 @@ void init(void)
 
 void display(void)
 {
+	GLuint program;
+	GLfloat t;
+
 	printError("pre display");
+
+	// Get current program (is there a better way?)
+	glGetIntegerv(GL_CURRENT_PROGRAM, (GLint *) &program);
+
+	t = (GLfloat) glutGet(GLUT_ELAPSED_TIME);
+
+	// Set matrix to rotation around the z-axis
+	GLfloat a = t / 1000.0;
+	myMatrix[0] = sin(a);
+	myMatrix[1] = -cos(a);
+	myMatrix[4] = cos(a);
+	myMatrix[5] = sin(a);
+
+	// Set x offset in matrix
+	myMatrix[3] = sin(a);
+
+	// Send matrix to the GPU
+	glUniformMatrix4fv(glGetUniformLocation(program, "myMatrix"), 1, GL_TRUE, myMatrix);
 
 	// clear the screen
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -82,6 +115,15 @@ void display(void)
 	glutSwapBuffers();
 }
 
+void OnTimer(int value)
+{
+
+    glutPostRedisplay();
+
+    glutTimerFunc(20, &OnTimer, value);
+
+}
+
 int main(int argc, char *argv[])
 {
 	glutInit(&argc, argv);
@@ -89,6 +131,7 @@ int main(int argc, char *argv[])
 	glutCreateWindow ("GL3 white triangle example");
 	glutDisplayFunc(display);
 	init ();
+	glutTimerFunc(20, &OnTimer, 0);
 	glutMainLoop();
 	return 0;
 }

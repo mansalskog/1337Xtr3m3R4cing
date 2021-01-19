@@ -1,6 +1,6 @@
 #version 150
 
-in  vec3 in_Position;
+in vec3 in_Position;
 
 void main(void)
 {
