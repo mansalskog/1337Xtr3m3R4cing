@@ -20,20 +20,69 @@
 // Data would normally be read from files
 GLfloat vertices[] =
 {
-	-0.5f,-0.5f,0.0f,
-	-0.5f,0.5f,0.0f,
-	0.5f,-0.5f,0.0f
+	-0.5f, -0.5f, 0.0f,
+	0.5f, -0.5f, 0.0f,
+	-0.5f, 0.5f, 0.0f,
+
+	-0.5f, 0.5f, 0.0f,
+	0.5f, -0.5f, 0.0f,
+	0.5f, 0.5f, 0.0f,
+
+	-0.5f, -0.5f, 0.0f,
+	-0.5f, 0.5f, 0.0f,
+	0.0f, 0.0f, 0.5f,
+
+	-0.5f, 0.5f, 0.0f,
+	0.5f, 0.5f, 0.0f,
+	0.0f, 0.0f, 0.5f,
+
+	0.5f, 0.5f, 0.0f,
+	0.5f, -0.5f, 0.0f,
+	0.0f, 0.0f, 0.5f,
+
+	0.5f, -0.5f, 0.0f,
+	-0.5f, -0.5f, 0.0f,
+	0.0f, 0.0f, 0.5f,
 };
+
+const size_t vertex_count = 18;
 
 GLfloat colors[] = {
-	0.9, 0.0, 0.0,
 	0.0, 0.9, 0.0,
-	0.0, 0.0, 0.9
+	0.0, 0.9, 0.0,
+	0.0, 0.9, 0.0,
+
+	0.9, 0.0, 0.0,
+	0.9, 0.0, 0.0,
+	0.9, 0.0, 0.0,
+
+	0.0, 0.0, 0.9,
+	0.0, 0.0, 0.9,
+	0.0, 0.0, 0.9,
+
+	0.9, 0.9, 0.0,
+	0.9, 0.9, 0.0,
+	0.9, 0.9, 0.0,
+
+	0.9, 0.0, 0.9,
+	0.9, 0.0, 0.9,
+	0.9, 0.0, 0.9,
+
+	0.0, 0.9, 0.9,
+	0.0, 0.9, 0.9,
+	0.0, 0.9, 0.9,
 };
 
-GLfloat myMatrix[] = {
-	1.0f, 0.0f, 0.0f, 0.5f,
-	0.0f, 1.5f, 0.0f, 0.0f,
+GLfloat zMatrix[] = {
+	1.0f, 0.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f, 0.0f,
+	0.0f, 0.0f, 1.0f, 0.0f,
+	0.0f, 0.0f, 0.0f, 1.0f
+};
+
+GLfloat yMatrix[] = {
+	1.0f, 0.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f, 0.0f,
 	0.0f, 0.0f, 1.0f, 0.0f,
 	0.0f, 0.0f, 0.0f, 1.0f
 };
@@ -52,12 +101,14 @@ void init(void)
 	dumpInfo();
 
 	// GL inits
+	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
 	glClearColor(0.1,0.1,0.1,0);
-	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
 	printError("GL inits");
 
 	// Load and compile shader
-	program = loadShaders("lab1-4.vert", "lab1-4.frag");
+	program = loadShaders("lab1-5.vert", "lab1-5.frag");
 	printError("init shader");
 
 	// Upload geometry to the GPU:
@@ -76,8 +127,9 @@ void init(void)
 
 	// End of upload of geometry
 
-	// Set the transformation matrix
-	glUniformMatrix4fv(glGetUniformLocation(program, "my_Matrix"), 1, GL_TRUE, myMatrix);
+	// Set transformation matrices
+	glUniformMatrix4fv(glGetUniformLocation(program, "zMatrix"), 1, GL_TRUE, zMatrix);
+	glUniformMatrix4fv(glGetUniformLocation(program, "yMatrix"), 1, GL_TRUE, yMatrix);
 
 	// Upload colors to GPU
 
@@ -109,25 +161,29 @@ void display(void)
 	glGetIntegerv(GL_CURRENT_PROGRAM, (GLint *) &program);
 
 	t = (GLfloat) glutGet(GLUT_ELAPSED_TIME);
+	GLfloat a = t / 1000.0;
 
 	// Set matrix to rotation around the z-axis
-	GLfloat a = t / 1000.0;
-	myMatrix[0] = sin(a);
-	myMatrix[1] = -cos(a);
-	myMatrix[4] = cos(a);
-	myMatrix[5] = sin(a);
+	zMatrix[0] = sin(a);
+	zMatrix[1] = -cos(a);
+	zMatrix[4] = cos(a);
+	zMatrix[5] = sin(a);
 
-	// Set x offset in matrix
-	myMatrix[3] = sin(a);
+	// Rotation around the y-axis
+	yMatrix[0] = sin(a);
+	yMatrix[2] = -cos(a);
+	yMatrix[8] = cos(a);
+	yMatrix[10] = sin(a);
 
 	// Send matrix to the GPU
-	glUniformMatrix4fv(glGetUniformLocation(program, "my_Matrix"), 1, GL_TRUE, myMatrix);
+	glUniformMatrix4fv(glGetUniformLocation(program, "zMatrix"), 1, GL_TRUE, zMatrix);
+	glUniformMatrix4fv(glGetUniformLocation(program, "yMatrix"), 1, GL_TRUE, yMatrix);
 
 	// clear the screen
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	glBindVertexArray(vertexArrayObjID);	// Select VAO
-	glDrawArrays(GL_TRIANGLES, 0, 3);	// draw object
+	glBindVertexArray(vertexArrayObjID); // Select VAO
+	glDrawArrays(GL_TRIANGLES, 0, vertex_count); // draw object
 
 	printError("display");
 
