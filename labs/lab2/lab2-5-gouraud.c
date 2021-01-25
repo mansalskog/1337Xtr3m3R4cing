@@ -48,13 +48,13 @@ void init(void)
 	dumpInfo();
 
 	// GL inits
-	glClearColor(0.1,0.1,0.1,0);
+	glClearColor(0.1, 0.1, 0.1, 0);
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
 	printError("GL inits");
 
 	// Load and compile shader
-	program = loadShaders("lab2-3.vert", "lab2-3.frag");
+	program = loadShaders("lab2-5-gouraud.vert", "lab2-5-gouraud.frag");
 	printError("init shader");
 
 	// Load model
@@ -139,13 +139,20 @@ void display(void)
 
 	t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
 
-	// Rotate around z and y and transform to get into view
-	mat4 rotation = Mult(Rx(t * 1.5), Mult(Ry(t * 2.5), Rz(t * 1.0)));
-	mat4 translation = T(cos(t), sin(t), -3.0f);
-	mat4 modelMatrix = Mult(translation, rotation);
-
 	// Send model matrix to the GPU
+	// Use two unit matrices
+	mat4 rotation = Ry(t);
+	mat4 translation = T(0.0f, 0.0f, 0.0f);
+	mat4 modelMatrix = Mult(translation, rotation);
 	glUniformMatrix4fv(glGetUniformLocation(program, "modelMatrix"), 1, GL_TRUE, modelMatrix.m);
+
+	// Send view matrix
+	mat4 viewMatrix = lookAt(
+		2.0, 0.5, 3.0,
+		0, 0, 0,
+		0, 1, 0
+	);
+	glUniformMatrix4fv(glGetUniformLocation(program, "viewMatrix"), 1, GL_TRUE, viewMatrix.m);
 
 	// Send time in seconds as uniform
 	glUniform1f(glGetUniformLocation(program, "time"), t);
@@ -175,7 +182,7 @@ int main(int argc, char *argv[])
 	glutInit(&argc, argv);
 	glutInitContextVersion(3, 2);
 	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
-	glutCreateWindow ("3: bunny with model and projection matrix");
+	glutCreateWindow ("5: bunny with diffuse shading");
 	glutDisplayFunc(display);
 	init();
 	glutTimerFunc(20, &OnTimer, 0);

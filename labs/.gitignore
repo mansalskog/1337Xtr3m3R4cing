@@ -1,0 +1,11 @@
+# binary files for each lab
+lab1/lab1-[1-6]
+lab2/lab2-[12347]
+lab2/lab2-5-phong
+lab2/lab2-5-gouraud
+
+# vim swap files
+*.swp
+
+# emacs backup files
+*~

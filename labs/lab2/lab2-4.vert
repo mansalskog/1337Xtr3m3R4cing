@@ -9,12 +9,14 @@ in vec2 inTexCoord;
 
 uniform mat4 projection;
 uniform mat4 modelMatrix;
+uniform mat4 viewMatrix;
 
 void main(void)
 {
-	gl_Position = projection * modelMatrix * vec4(in_Position, 1.0);
+	mat4 totalMatrix = projection * viewMatrix * modelMatrix;
+	gl_Position = totalMatrix * vec4(in_Position, 1.0);
 
-	mat4 normalMatrix = inverse(transpose(projection * modelMatrix));
+	mat4 normalMatrix = inverse(transpose(totalMatrix));
 	vec4 transfNormal = normalMatrix * vec4(in_Normal, 1.0);
 	vec3 lightPos = vec3(0.5, 1.5, -0.5);
 	float lightness = dot(transfNormal.xyz, lightPos);
