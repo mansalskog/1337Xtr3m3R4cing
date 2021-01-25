@@ -14,6 +14,8 @@ void main(void)
 
 	mat4 normalMatrix = inverse(transpose(yMatrix * zMatrix));
 	vec4 transfNormal = normalMatrix * vec4(in_Normal, 1.0);
-	float lightness = dot(transfNormal.xyz, vec3(0.2, 1.0, 0.2));
-	vert_Color = vec3(1.0 - smoothstep(0.2, 0.8, lightness), 0.5, 0.5);
+	vec3 lightPos = vec3(0.5, 1.5, -0.5);
+	float lightness = dot(transfNormal.xyz, lightPos);
+	// vert_Color = in_Normal;
+	vert_Color = vec3(smoothstep(0.2, 0.6, lightness), 0.5, 0.5);
 }

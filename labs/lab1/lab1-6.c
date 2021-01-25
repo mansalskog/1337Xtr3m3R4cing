@@ -52,10 +52,9 @@ void init(void)
 	dumpInfo();
 
 	// GL inits
-	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
 	glClearColor(0.1,0.1,0.1,0);
 	glEnable(GL_DEPTH_TEST);
-	// glEnable(GL_CULL_FACE);
+	glDisable(GL_CULL_FACE);
 	printError("GL inits");
 
 	// Load and compile shader
@@ -156,7 +155,8 @@ int main(int argc, char *argv[])
 {
 	glutInit(&argc, argv);
 	glutInitContextVersion(3, 2);
-	glutCreateWindow ("GL3 white triangle example");
+        glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
+	glutCreateWindow ("6: GL3 animated bunny");
 	glutDisplayFunc(display);
 	init ();
 	glutTimerFunc(20, &OnTimer, 0);

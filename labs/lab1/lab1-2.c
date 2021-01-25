@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
 {
 	glutInit(&argc, argv);
 	glutInitContextVersion(3, 2);
-	glutCreateWindow ("GL3 white triangle example");
+	glutCreateWindow ("2: GL3 transformed triangle");
 	glutDisplayFunc(display);
 	init ();
 	glutMainLoop();
