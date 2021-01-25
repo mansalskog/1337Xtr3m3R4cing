@@ -1,10 +1,10 @@
 #version 150
 
-out vec3 normalVec;
-out vec2 tex_Coord;
+out vec3 normal;
+out vec2 texCoord;
 
-in vec3 in_Normal;
-in vec3 in_Position;
+in vec3 inNormal;
+in vec3 inPosition;
 in vec2 inTexCoord;
 
 uniform mat4 projection;
@@ -13,9 +13,9 @@ uniform mat4 viewMatrix;
 
 void main(void)
 {
-	gl_Position = projection * viewMatrix * modelMatrix * vec4(in_Position, 1.0);
+	gl_Position = projection * viewMatrix * modelMatrix * vec4(inPosition, 1.0);
 
-	normalVec = in_Normal;
+	normal= inNormal;
 
-	tex_Coord = inTexCoord;
+	texCoord = inTexCoord;
 }

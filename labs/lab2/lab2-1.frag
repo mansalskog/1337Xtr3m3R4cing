@@ -9,5 +9,5 @@ uniform float time;
 
 void main(void)
 {
-	out_Color = vec4(sin(tex_Coord.x * 50.0), sin(tex_Coord.y * 50.0), abs(sin(time)), 1.0);
+	out_Color = vec4(sin(tex_Coord.s * 50.0), sin(tex_Coord.t * 50.0), 1.0, 1.0);
 }

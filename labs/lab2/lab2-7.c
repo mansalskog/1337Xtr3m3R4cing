@@ -34,11 +34,67 @@ const GLfloat projectionMatrix[] = {
 	0.0f, 0.0f, -1.0f, 0.0f
 };
 
-// vertex array object for the model
-unsigned int bunnyVertexArrayObjID;
+// vertex array object for the models
+GLuint bunnyVAO;
+GLuint carVAO;
+GLuint windmillBlade;
+GLuint windmillRoof;
+GLuint windmillBalcony;
+GLuint windmillWalls;
 
-// Loaded model
-Model *m;
+// The models themselves
+Model *bunnyModel;
+Model *carModel;
+
+void putModelIntoVAO(GLuint program, Model *m, GLuint *vertexArrayObjID) {
+	if (!m) {
+		fprintf(stderr, "Model is NULL!\n");
+		exit(1);
+	}
+
+	// vertex buffer objects
+	GLuint vertexBufferObjID;
+	GLuint indexBufferObjID;
+	GLuint normalBufferObjID;
+	GLuint texCoordBufferObjID;
+
+	glGenVertexArrays(1, vertexArrayObjID);
+	glGenBuffers(1, &vertexBufferObjID);
+	glGenBuffers(1, &indexBufferObjID);
+	glGenBuffers(1, &normalBufferObjID);
+	glGenBuffers(1, &texCoordBufferObjID);
+	glBindVertexArray(*vertexArrayObjID);
+
+	// VBO for vertex data
+	glBindBuffer(GL_ARRAY_BUFFER, vertexBufferObjID);
+	glBufferData(GL_ARRAY_BUFFER, m->numVertices * 3 * sizeof(GLfloat), m->vertexArray, GL_STATIC_DRAW);
+	glVertexAttribPointer(glGetAttribLocation(program, "inPosition"), 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(glGetAttribLocation(program, "inPosition"));
+	printError("init positions");
+
+	// VBO for normal data
+	if (m->normalArray != NULL) {
+		glBindBuffer(GL_ARRAY_BUFFER, normalBufferObjID);
+		glBufferData(GL_ARRAY_BUFFER, m->numVertices * 3 * sizeof(GLfloat), m->normalArray, GL_STATIC_DRAW);
+		glVertexAttribPointer(glGetAttribLocation(program, "inNormal"), 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(glGetAttribLocation(program, "inNormal"));
+		printError("init normals");
+	}
+
+	// VBO for texture coordinates
+	if (m->texCoordArray != NULL)
+	{
+		glBindBuffer(GL_ARRAY_BUFFER, texCoordBufferObjID);
+		glBufferData(GL_ARRAY_BUFFER, m->numVertices * 2 * sizeof(GLfloat), m->texCoordArray, GL_STATIC_DRAW);
+		glVertexAttribPointer(glGetAttribLocation(program, "inTexCoord"), 2, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(glGetAttribLocation(program, "inTexCoord"));
+		printError("init texture coords");
+	}
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufferObjID);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, m->numIndices * sizeof(GLuint), m->indexArray, GL_STATIC_DRAW);
+	printError("init indices");
+}
 
 void init(void)
 {
@@ -54,71 +110,29 @@ void init(void)
 	printError("GL inits");
 
 	// Load and compile shader
-	program = loadShaders("lab2-5-phong.vert", "lab2-5-phong.frag");
+	program = loadShaders("lab2-7.vert", "lab2-7.frag");
 	printError("init shader");
 
-	// Load model
-	m = LoadModel("bunnyplus.obj");
-	if (!m) {
-		fprintf(stderr, "Could not load file");
-		exit(1);
-	}
+	// Load models and upload geometry to the GPU:
+	bunnyModel = LoadModel("bunnyplus.obj");
+	putModelIntoVAO(program, bunnyModel, &bunnyVAO);
 
-	// Upload geometry to the GPU:
-
-	// vertex buffer objects, for the bunny
-	unsigned int bunnyVertexBufferObjID;
-	unsigned int bunnyIndexBufferObjID;
-	unsigned int bunnyNormalBufferObjID;
-	unsigned int bunnyTexCoordBufferObjID;
-
-	glGenVertexArrays(1, &bunnyVertexArrayObjID);
-	glGenBuffers(1, &bunnyVertexBufferObjID);
-	glGenBuffers(1, &bunnyIndexBufferObjID);
-	glGenBuffers(1, &bunnyNormalBufferObjID);
-	glGenBuffers(1, &bunnyTexCoordBufferObjID);
-	glBindVertexArray(bunnyVertexArrayObjID);
-
-	// VBO for vertex data
-	glBindBuffer(GL_ARRAY_BUFFER, bunnyVertexBufferObjID);
-	glBufferData(GL_ARRAY_BUFFER, m->numVertices * 3 * sizeof(GLfloat), m->vertexArray, GL_STATIC_DRAW);
-	glVertexAttribPointer(glGetAttribLocation(program, "in_Position"), 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(glGetAttribLocation(program, "in_Position"));
-	printError("init positions");
-
-	// VBO for normal data
-	if (m->normalArray != NULL) {
-		glBindBuffer(GL_ARRAY_BUFFER, bunnyNormalBufferObjID);
-		glBufferData(GL_ARRAY_BUFFER, m->numVertices * 3 * sizeof(GLfloat), m->normalArray, GL_STATIC_DRAW);
-		glVertexAttribPointer(glGetAttribLocation(program, "in_Normal"), 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(glGetAttribLocation(program, "in_Normal"));
-		printError("init normals");
-	}
-
-	// VBO for texture coordinates
-	if (m->texCoordArray != NULL)
-	{
-		glBindBuffer(GL_ARRAY_BUFFER, bunnyTexCoordBufferObjID);
-		glBufferData(GL_ARRAY_BUFFER, m->numVertices * 2 * sizeof(GLfloat), m->texCoordArray, GL_STATIC_DRAW);
-		glVertexAttribPointer(glGetAttribLocation(program, "inTexCoord"), 2, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(glGetAttribLocation(program, "inTexCoord"));
-		printError("init texture coords");
-	}
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bunnyIndexBufferObjID);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, m->numIndices * sizeof(GLuint), m->indexArray, GL_STATIC_DRAW);
-	printError("init indices");
+	carModel = LoadModel("bilskiss.obj");
+	putModelIntoVAO(program, carModel, &carVAO);
 
 	// End of upload of geometry
 
-	// Upload texture to GPU
+	// Upload textures to GPU
 
 	GLuint bunnyTexture;
 	LoadTGATextureSimple("maskros512.tga", &bunnyTexture);
-	glBindTexture(GL_TEXTURE_2D, bunnyTexture);
 	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, bunnyTexture);
 
-	glUniform1i(glGetUniformLocation(program, "texUnit"), 0); // Texture unit 0
+	GLuint carTexture;
+	LoadTGATextureSimple("bilskissred.tga", &carTexture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, carTexture);
 
 	// End of texture upload
 
@@ -130,21 +144,18 @@ void init(void)
 
 void display(void)
 {
-	GLuint program;
-	GLfloat t;
-
 	printError("pre display");
 
+	// clear the screen
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	GLuint program;
 	glGetIntegerv(GL_CURRENT_PROGRAM, (GLint *) &program);
 
-	t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	// Send time in seconds as uniform
+	GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	glUniform1f(glGetUniformLocation(program, "time"), t);
 
-	// Send model matrix to the GPU
-	// Use two unit matrices
-	mat4 rotation = Ry(t);
-	mat4 translation = T(0.0f, 0.0f, 0.0f);
-	mat4 modelMatrix = Mult(translation, rotation);
-	glUniformMatrix4fv(glGetUniformLocation(program, "modelMatrix"), 1, GL_TRUE, modelMatrix.m);
 
 	// Send view matrix
 	mat4 viewMatrix = lookAt(
@@ -154,14 +165,30 @@ void display(void)
 	);
 	glUniformMatrix4fv(glGetUniformLocation(program, "viewMatrix"), 1, GL_TRUE, viewMatrix.m);
 
-	// Send time in seconds as uniform
-	glUniform1f(glGetUniformLocation(program, "time"), t);
+	// Draw all the models in order
+	mat4 rotation, translation, modelMatrix;
+	GLuint texUnitAttr = glGetUniformLocation(program, "texUnit");
+	GLuint modelMatrixAttr = glGetUniformLocation(program, "modelMatrix");
 
-	// clear the screen
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	// Draw bunny model
+	rotation = Ry(t);
+	translation = T(1.0f, 0.0f, 0.0f);
+	modelMatrix = Mult(translation, rotation);
+	glUniformMatrix4fv(modelMatrixAttr, 1, GL_TRUE, modelMatrix.m);
 
-	glBindVertexArray(bunnyVertexArrayObjID); // Select VAO
-	glDrawElements(GL_TRIANGLES, m->numIndices, GL_UNSIGNED_INT, 0L); // draw object
+	glUniform1i(texUnitAttr, 0); // Select texture 0
+	glBindVertexArray(bunnyVAO); // Select VAO
+	glDrawElements(GL_TRIANGLES, bunnyModel->numIndices, GL_UNSIGNED_INT, 0L); // draw object
+
+	// Draw car model
+	rotation = Ry(t);
+	translation = T(-1.0f, 0.0f, 0.0f);
+	modelMatrix = Mult(translation, rotation);
+	glUniformMatrix4fv(modelMatrixAttr, 1, GL_TRUE, modelMatrix.m);
+
+	glUniform1i(texUnitAttr, 1); // Select texture 1
+	glBindVertexArray(carVAO); // Select VAO
+	glDrawElements(GL_TRIANGLES, carModel->numIndices, GL_UNSIGNED_INT, 0L); // draw object
 
 	printError("display");
 

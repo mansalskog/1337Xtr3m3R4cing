@@ -11,10 +11,10 @@ else
 	included := $(commondir)GL_utilities.c $(commondir)VectorUtils3.c $(commondir)loadobj.c $(commondir)LoadTGA.c $(commondir)$(osname)/MicroGlut.c
 endif
 
-all: lab2-1 lab2-2 lab2-3 lab2-4 lab2-5 lab2-5-gouraud lab2-5-phong
+all: lab2-1 lab2-2 lab2-3 lab2-4 lab2-5-gouraud lab2-5-phong lab2-7
 
 %: %.c $(included)
 	gcc $(warnflags) -o $@ -I$(commondir) -I../common/$(osname) -DGL_GLEXT_PROTOTYPES $^ $(linkflags)
 
 clean:
-	rm lab2-1 lab2-2 lab2-3 lab2-4 lab2-5-gouraud lab2-5-phong
+	rm lab2-1 lab2-2 lab2-3 lab2-4 lab2-5-gouraud lab2-5-phong lab2-7
