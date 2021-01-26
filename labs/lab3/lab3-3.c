@@ -1,4 +1,4 @@
-// Lab 3-1.
+// Lab 3-3.
 
 // Should work as is on Linux and Mac. MS Windows needs GLEW or glee.
 // See separate Visual Studio version of my demos.
@@ -18,10 +18,13 @@
 
 // Globals
 
+#define WIN_WIDTH 1000
+#define WIN_HEIGHT 1000
+
 // projection matrix
 
 #define near 1.0
-#define far 100.0
+#define far 1000.0
 #define right 0.5
 #define left -0.5
 #define top 0.5
@@ -34,21 +37,47 @@ const GLfloat projectionMatrix[] = {
 	0.0f, 0.0f, -1.0f, 0.0f
 };
 
+// ground object
+
+#define GROUND_SIZE 1000.0f
+const GLfloat groundVertices[] = {
+	-GROUND_SIZE, 0.0f, -GROUND_SIZE,
+	-GROUND_SIZE, 0.0f, GROUND_SIZE,
+	GROUND_SIZE, 0.0f, -GROUND_SIZE,
+	
+	GROUND_SIZE, 0.0f, -GROUND_SIZE,
+	-GROUND_SIZE, 0.0f, GROUND_SIZE,
+	GROUND_SIZE, 0.0f, GROUND_SIZE,
+};
+#define GROUND_TEX_SIZE 100.0f
+const GLfloat groundTexCoords[] = {
+	0.0f, 0.0f,
+	0.0f, GROUND_TEX_SIZE,
+	GROUND_TEX_SIZE, 0.0f,
+	
+	GROUND_TEX_SIZE, 0.0f,
+	0.0f, GROUND_TEX_SIZE,
+	GROUND_TEX_SIZE, GROUND_TEX_SIZE,
+};
+const int groundNumVertices = 6;
+
+// Ground conisting of large square
+GLuint groundVAO;
+
+// Loaded models
 typedef struct {
 	Model *model;
 	GLuint vao;
 } ModelAndVAO;
 
-// vertex array object for the models
 ModelAndVAO windmillBlade;
 ModelAndVAO windmillRoof;
 ModelAndVAO windmillBalcony;
 ModelAndVAO windmillWalls;
+ModelAndVAO skybox;
 
 // Textures
-GLuint squaresTex;
-GLuint carTex;
-GLuint dandelionTex;
+GLuint skyboxTex;
 GLuint dirtTex;
 GLuint grassTex;
 
@@ -132,7 +161,7 @@ void init(void)
 	printError("GL inits");
 
 	// Load and compile shader
-	program = loadShaders("lab3-1.vert", "lab3-1.frag");
+	program = loadShaders("lab3-3.vert", "lab3-3.frag");
 	printError("init shader");
 
 	// Load models and upload geometry to the GPU:
@@ -140,6 +169,26 @@ void init(void)
 	loadModelAndVAO(program, "windmill/windmill-balcony.obj", &windmillBalcony);
 	loadModelAndVAO(program, "windmill/windmill-roof.obj", &windmillRoof);
 	loadModelAndVAO(program, "windmill/windmill-walls.obj", &windmillWalls);
+	loadModelAndVAO(program, "skybox.obj", &skybox);
+
+	// Vertex array object for ground
+	glGenVertexArrays(1, &groundVAO);
+	GLuint groundVBO, groundTexCoordBO;
+	glGenBuffers(1, &groundVBO);
+	glGenBuffers(1, &groundTexCoordBO);
+	glBindVertexArray(groundVAO);
+
+	glBindBuffer(GL_ARRAY_BUFFER, groundVBO);
+	glBufferData(GL_ARRAY_BUFFER, groundNumVertices * 3 * sizeof(GLfloat), groundVertices, GL_STATIC_DRAW);
+	glVertexAttribPointer(glGetAttribLocation(program, "inPosition"), 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(glGetAttribLocation(program, "inPosition"));
+	printError("init positions for ground");
+
+	glBindBuffer(GL_ARRAY_BUFFER, groundTexCoordBO);
+	glBufferData(GL_ARRAY_BUFFER, groundNumVertices * 2 * sizeof(GLfloat), groundTexCoords, GL_STATIC_DRAW);
+	glVertexAttribPointer(glGetAttribLocation(program, "inTexCoord"), 2, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(glGetAttribLocation(program, "inTexCoord"));
+	printError("init texture coords for ground");
 
 	// End of upload of geometry
 
@@ -147,11 +196,9 @@ void init(void)
 
 	// Load textures
 
-	LoadTGATextureSimple("rutor.tga", &squaresTex);
-	LoadTGATextureSimple("bilskissred.tga", &carTex);
-	LoadTGATextureSimple("maskros512.tga", &dandelionTex);
 	LoadTGATextureSimple("dirt.tga", &dirtTex);
 	LoadTGATextureSimple("grass.tga", &grassTex);
+	LoadTGATextureSimple("SkyBox512.tga", &skyboxTex);
 
 	// Select texture 0
 	glActiveTexture(GL_TEXTURE0);
@@ -164,12 +211,58 @@ void init(void)
 	printError("init matrices");
 }
 
-// Temporary variables to adjust position of bladestime
-float bladesX = 4.56;
-float bladesY = 9.23;
-float bladesZ = 0.03;
-float animToggle = 0.0f;
-int animate = 0;
+// Variables related to viewer position
+vec3 viewPos = {10.0f, 0.0f, 10.0f};
+vec3 viewTarget = {0.0f, 0.0f, 0.0f};
+float previousT = 0.0f;
+
+void MouseFunc(int x, int y) {
+
+}
+
+void handleFlyingControls(vec3 up_vector, float delta) {
+	delta *= 0.4f; // adjust speed
+	// Fly around in the world, update view matrix for next frame
+	const vec3 forward_vector = Normalize(VectorSub(viewTarget, viewPos));
+	// cross product of two unit vectors is also unit
+	const vec3 right_vector = Normalize(CrossProduct(forward_vector, up_vector)); 
+	// Forward and backward
+	if (glutKeyIsDown('w')) {
+		viewPos = VectorAdd(viewPos, ScalarMult(forward_vector, delta));
+	}
+	if (glutKeyIsDown('s')) {
+		viewPos = VectorSub(viewPos, ScalarMult(forward_vector, delta));
+	}
+	// Strafing left and right
+	if (glutKeyIsDown('d')) {
+		viewPos = VectorAdd(viewPos, ScalarMult(right_vector, delta));
+	}
+	if (glutKeyIsDown('a')) {
+		viewPos = VectorSub(viewPos, ScalarMult(right_vector, delta));
+	}
+	// Up and down
+	if (glutKeyIsDown(' ')) {
+		viewPos = VectorAdd(viewPos, ScalarMult(up_vector, delta));
+	}
+	if (glutKeyIsDown('c')) {
+		viewPos = VectorSub(viewPos, ScalarMult(up_vector, delta));
+	}
+	// Put view target 100 units in front of view pos
+	viewTarget = VectorAdd(viewPos, ScalarMult(forward_vector, 100.0f));
+	// Turning, should be done with mouse also
+	if (glutKeyIsDown(GLUT_KEY_RIGHT)) {
+		viewTarget = VectorAdd(viewTarget, ScalarMult(right_vector, delta));
+	}
+	if (glutKeyIsDown(GLUT_KEY_LEFT)) {
+		viewTarget = VectorSub(viewTarget, ScalarMult(right_vector, delta));
+	}
+	if (glutKeyIsDown(GLUT_KEY_UP)) {
+		viewTarget = VectorAdd(viewTarget, ScalarMult(up_vector, delta));
+	}
+	if (glutKeyIsDown(GLUT_KEY_DOWN)) {
+		viewTarget = VectorSub(viewTarget, ScalarMult(up_vector, delta));
+	}
+}
 
 void display(void)
 {
@@ -186,71 +279,54 @@ void display(void)
 	glUniform1f(glGetUniformLocation(program, "time"), t);
 
 	// Send view matrix
-	mat4 viewMatrix = lookAt(
-		10.0, 5.0, 10.0,
-		0, 0, 0,
-		0, 1, 0
-	);
+	const vec3 up_vector = {0, 1, 0};
+	mat4 viewMatrix = lookAtv(viewPos, viewTarget, up_vector);
 	glUniformMatrix4fv(glGetUniformLocation(program, "viewMatrix"), 1, GL_TRUE, viewMatrix.m);
+
+	float delta = (t - previousT);
+	handleFlyingControls(up_vector, delta);
 
 	// Draw all the models in order
 	GLuint modelMatAttr = glGetUniformLocation(program, "modelMatrix");
 	GLuint useTexAttr = glGetUniformLocation(program, "useTexture");
+	GLuint isSkyboxAttr = glGetUniformLocation(program, "isSkybox");
 
-	// Alter position of blades
-	float delta = t / 500.0;
-	if (glutKeyIsDown('w')) {
-		bladesZ += delta;
-	}
-	if (glutKeyIsDown('s')) {
-		bladesZ -= delta;
-	}
-	if (glutKeyIsDown('d')) {
-		bladesX += delta;
-	}
-	if (glutKeyIsDown('a')) {
-		bladesX -= delta;
-	}
-	if (glutKeyIsDown('q')) {
-		bladesY += delta;
-	}
-	if (glutKeyIsDown('e')) {
-		bladesY -= delta;
-	}
-	// printf("%f %f %f\n", bladesX, bladesY, bladesZ);
+	glUniform1i(useTexAttr, 1);
+	// Draw the skybox
+	glUniform1i(isSkyboxAttr, 1);
+	glDisable(GL_DEPTH_TEST);
+	setModelMatrix(modelMatAttr, Rx(0.0));
+	drawModelWithTex(&skybox, skyboxTex);
+	glEnable(GL_DEPTH_TEST);
+	glUniform1i(isSkyboxAttr, 0);
 
-	if (!animate && t - animToggle > 0.1f && glutKeyIsDown('t')) {
-		animate = 1;
-		animToggle = t;
-	}
-	if (animate && t - animToggle > 0.1f && glutKeyIsDown('t')) {
-		animate = 0;
-		animToggle = t;
-	}
-
+	// Draw the ground
+	setModelMatrix(modelMatAttr, T(0.0f, -10.0f, 0.0f));
+	glBindTexture(GL_TEXTURE_2D, grassTex);
+	glBindVertexArray(groundVAO); // Select VAO
+	glDrawArrays(GL_TRIANGLES, 0, groundNumVertices);
+	
 	glUniform1i(useTexAttr, 0);
-	mat4 windmillMatrix = animate ?
-		Mult(T(-10.0f, -10.0f, -10.0f), Rx(0.5f * sin(0.5f * (t - animToggle)))) :
-		T(-10.0f, -10.0f, -10.0f);
+	mat4 windmillMatrix = T(-10.0f, -10.0f, -10.0f);
+	// Mult(T(-10.0f, -10.0f, -10.0f), Rx(0.5f * sin(0.5f * t)));
 
 	// Draw windmill blades model
-	mat4 bladesMatrix = animate ?
-		Mult(windmillMatrix, Mult(T(bladesX, bladesY, bladesZ), Rx(t - animToggle))) :
-		Mult(windmillMatrix, T(bladesX, bladesY, bladesZ));
+	mat4 bladesMatrix = Mult(windmillMatrix,
+			Mult(T(4.56, 9.23, 0.03), Rx(t)));
 	setModelMatrix(modelMatAttr, bladesMatrix);
-	drawModelWithTex(&windmillBlade, squaresTex);
+	drawModelWithTex(&windmillBlade, grassTex);
 	setModelMatrix(modelMatAttr, Mult(bladesMatrix, Rx(0.5 * M_PI)));
-	drawModelWithTex(&windmillBlade, squaresTex);
+	drawModelWithTex(&windmillBlade, grassTex);
 	setModelMatrix(modelMatAttr, Mult(bladesMatrix, Rx(1.0f * M_PI)));
-	drawModelWithTex(&windmillBlade, squaresTex);
+	drawModelWithTex(&windmillBlade, grassTex);
 	setModelMatrix(modelMatAttr, Mult(bladesMatrix, Rx(1.5f * M_PI)));
-	drawModelWithTex(&windmillBlade, squaresTex);
+	drawModelWithTex(&windmillBlade, grassTex);
 
 	// Draw windmill without blades
 	setModelMatrix(modelMatAttr, windmillMatrix);
-	drawModelWithTex(&windmillBalcony, squaresTex);
-	drawModelWithTex(&windmillRoof, squaresTex);
-	drawModelWithTex(&windmillWalls, squaresTex);
+	drawModelWithTex(&windmillBalcony, grassTex);
+	drawModelWithTex(&windmillRoof, grassTex);
+	drawModelWithTex(&windmillWalls, grassTex);
 
 	printError("display");
 	glutSwapBuffers();
@@ -267,11 +343,12 @@ int main(int argc, char *argv[])
 	glutInit(&argc, argv);
 	glutInitContextVersion(3, 2);
 	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
-	glutInitWindowSize(1000, 1000);
-	glutCreateWindow ("7: bunny, windmill and car");
+	glutInitWindowSize(WIN_WIDTH, WIN_WIDTH);
+	glutCreateWindow ("3: Skybox and ground");
 	glutDisplayFunc(display);
 	init();
-	glutTimerFunc(20, &OnTimer, 0);
+	glutTimerFunc(20, OnTimer, 0);
+	glutPassiveMotionFunc(MouseFunc);
 	glutMainLoop();
 	return 0;
 }
