@@ -11,11 +11,19 @@ uniform mat4 projection;
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
 
+uniform bool useTexture;
+uniform float time;
+
 void main(void)
 {
-	gl_Position = projection * viewMatrix * modelMatrix * vec4(inPosition, 1.0);
+	if (useTexture) {
+		gl_Position = projection * viewMatrix * modelMatrix * vec4(inPosition, 1.0);
+	} else {
+		vec4 delta = 0.3 * vec4(0.0, 0.8 * sin(pow(1.5 * sin(time), 2.0) * inPosition.z), 0.0, 0.0);
+		gl_Position = projection * viewMatrix * (delta + modelMatrix * vec4(inPosition, 1.0));
+	}
 
-	normal= inNormal;
+	normal = inNormal;
 
 	texCoord = inTexCoord;
 }

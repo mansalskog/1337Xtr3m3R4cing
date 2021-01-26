@@ -11,6 +11,8 @@ uniform sampler2D texUnit;
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
 
+uniform bool useTexture;
+
 void main(void)
 {
 	// Phong shading
@@ -19,5 +21,9 @@ void main(void)
 	vec3 lightPos = vec3(0.58, 0.58, -0.58);
 	float lightness = (dot(transfNormal.xyz, lightPos) + 1.0) / 2.0;
 
-	outColor = lightness * texture(texUnit, texCoord);
+	if (useTexture) {
+		outColor = vec4((lightness * texture(texUnit, texCoord)).xyz, 1.0);
+	} else {
+		outColor = lightness * vec4(normal, 1.0);
+	}
 }
