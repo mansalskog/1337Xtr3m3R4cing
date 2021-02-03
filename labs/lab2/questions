@@ -1,0 +1,30 @@
+1: How are the textures coordinates mapped on the bunny? Can you see what geometry was used?
+Texture coordinates are equal to world coordinates?
+
+1: What kind of procedural texture did you make?
+Sine wave stripes.
+
+2: How can you make a texture repeat multiple times over the bunny?
+texCoord = mod(texCoord, 0.5);
+
+2: Why can't we just pass the texture object to the shader? There is a specific reason for this, a limited resource. What? (No, it is not that we must avoid re-uploading from CPU. The texture object is on the GPU!)
+Must interpolate between different pixels in the texture. Perspective correct mapping.
+
+3: How did you move the bunny to get it in view?
+-3 in z
+
+4: Given a certain vector for v, is there some place you can't place the camera?
+The up vector v cannot be orthogonal to the sceen i.e. parallell to the vector from l to p.
+
+5: Did you implement your light calculations in the vertex or fragment shader? So, which kind of shading did you implement?
+Both. Gouraud = vertex shader. Phong = fragment shader.
+
+5: Some geometry data must be vec4, others are just as well vec3's. Which ones, and why? How about vertices, light source, normal vectors...?
+Normal vectors are vec3 because they are translation invariant. Vertices are vec4 because they can be translated.
+The light position should be vec4 as it can be translated, but here it is constant and so left as a vec3.
+
+6: Was the difference big? If not, why?
+No.
+
+If you rotate an object or rotate the camera, what matrices are affected?
+Model matrix and view matrix, respectively.
