@@ -17,7 +17,8 @@ uniform bool isSkybox;
 void main(void)
 {
 	if (isSkybox) {
-		gl_Position = projection * vec4(vec3(viewMatrix) * inPosition, 1.0);
+                // remove translation from view matrix, and remove entire model matrix
+		gl_Position = projection * mat4(mat3(viewMatrix)) * vec4(inPosition, 1.0);
 	} else {
 		gl_Position = projection * viewMatrix * modelMatrix * vec4(inPosition, 1.0);
 	}

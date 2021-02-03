@@ -44,7 +44,7 @@ const GLfloat groundVertices[] = {
 	-GROUND_SIZE, 0.0f, -GROUND_SIZE,
 	-GROUND_SIZE, 0.0f, GROUND_SIZE,
 	GROUND_SIZE, 0.0f, -GROUND_SIZE,
-	
+
 	GROUND_SIZE, 0.0f, -GROUND_SIZE,
 	-GROUND_SIZE, 0.0f, GROUND_SIZE,
 	GROUND_SIZE, 0.0f, GROUND_SIZE,
@@ -54,7 +54,7 @@ const GLfloat groundTexCoords[] = {
 	0.0f, 0.0f,
 	0.0f, GROUND_TEX_SIZE,
 	GROUND_TEX_SIZE, 0.0f,
-	
+
 	GROUND_TEX_SIZE, 0.0f,
 	0.0f, GROUND_TEX_SIZE,
 	GROUND_TEX_SIZE, GROUND_TEX_SIZE,
@@ -157,7 +157,7 @@ void init(void)
 	// GL inits
 	glClearColor(0.1, 0.1, 0.1, 0);
 	glEnable(GL_DEPTH_TEST);
-	glDisable(GL_CULL_FACE);
+        glEnable(GL_CULL_FACE);
 	printError("GL inits");
 
 	// Load and compile shader
@@ -221,11 +221,11 @@ void MouseFunc(int x, int y) {
 }
 
 void handleFlyingControls(vec3 up_vector, float delta) {
-	delta *= 0.4f; // adjust speed
+	delta *= 50.0f; // adjust speed
 	// Fly around in the world, update view matrix for next frame
 	const vec3 forward_vector = Normalize(VectorSub(viewTarget, viewPos));
 	// cross product of two unit vectors is also unit
-	const vec3 right_vector = Normalize(CrossProduct(forward_vector, up_vector)); 
+	const vec3 right_vector = Normalize(CrossProduct(forward_vector, up_vector));
 	// Forward and backward
 	if (glutKeyIsDown('w')) {
 		viewPos = VectorAdd(viewPos, ScalarMult(forward_vector, delta));
@@ -284,6 +284,7 @@ void display(void)
 	glUniformMatrix4fv(glGetUniformLocation(program, "viewMatrix"), 1, GL_TRUE, viewMatrix.m);
 
 	float delta = (t - previousT);
+	previousT = t;
 	handleFlyingControls(up_vector, delta);
 
 	// Draw all the models in order
@@ -291,10 +292,11 @@ void display(void)
 	GLuint useTexAttr = glGetUniformLocation(program, "useTexture");
 	GLuint isSkyboxAttr = glGetUniformLocation(program, "isSkybox");
 
-	glUniform1i(useTexAttr, 1);
+	glUniform1i(useTexAttr, 1); // Skybox and ground have textures
 	// Draw the skybox
 	glUniform1i(isSkyboxAttr, 1);
 	glDisable(GL_DEPTH_TEST);
+        glDisable(GL_CULL_FACE);
 	setModelMatrix(modelMatAttr, Rx(0.0));
 	drawModelWithTex(&skybox, skyboxTex);
 	glEnable(GL_DEPTH_TEST);
@@ -305,8 +307,9 @@ void display(void)
 	glBindTexture(GL_TEXTURE_2D, grassTex);
 	glBindVertexArray(groundVAO); // Select VAO
 	glDrawArrays(GL_TRIANGLES, 0, groundNumVertices);
-	
-	glUniform1i(useTexAttr, 0);
+        glEnable(GL_CULL_FACE);
+
+	glUniform1i(useTexAttr, 0); // Windmill has no texture
 	mat4 windmillMatrix = T(-10.0f, -10.0f, -10.0f);
 	// Mult(T(-10.0f, -10.0f, -10.0f), Rx(0.5f * sin(0.5f * t)));
 
