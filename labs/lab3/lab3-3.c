@@ -75,11 +75,14 @@ ModelAndVAO windmillRoof;
 ModelAndVAO windmillBalcony;
 ModelAndVAO windmillWalls;
 ModelAndVAO skybox;
+ModelAndVAO teapot;
+ModelAndVAO bunny;
 
 // Textures
 GLuint skyboxTex;
 GLuint dirtTex;
 GLuint grassTex;
+GLuint concTex;
 
 void loadModelAndVAO(GLuint program, const char *filename, ModelAndVAO *m) {
 	m->model = LoadModel(filename);
@@ -170,6 +173,8 @@ void init(void)
 	loadModelAndVAO(program, "windmill/windmill-roof.obj", &windmillRoof);
 	loadModelAndVAO(program, "windmill/windmill-walls.obj", &windmillWalls);
 	loadModelAndVAO(program, "skybox.obj", &skybox);
+	loadModelAndVAO(program, "bunnyplus.obj", &bunny);
+	loadModelAndVAO(program, "teapot.obj", &teapot);
 
 	// Vertex array object for ground
 	glGenVertexArrays(1, &groundVAO);
@@ -198,6 +203,7 @@ void init(void)
 
 	LoadTGATextureSimple("dirt.tga", &dirtTex);
 	LoadTGATextureSimple("grass.tga", &grassTex);
+	LoadTGATextureSimple("conc.tga", &concTex);
 	LoadTGATextureSimple("SkyBox512.tga", &skyboxTex);
 
 	// Select texture 0
@@ -330,6 +336,14 @@ void display(void)
 	drawModelWithTex(&windmillBalcony, grassTex);
 	drawModelWithTex(&windmillRoof, grassTex);
 	drawModelWithTex(&windmillWalls, grassTex);
+
+	// Draw the teapot
+	setModelMatrix(modelMatAttr, T(1.0f, 1.0f, 1.0f));
+	drawModelWithTex(&teapot, concTex);
+
+	// Draw the bunny
+	setModelMatrix(modelMatAttr, Mult(T(-1.0f, -7.0f, 1.0f), S(5.0f, 5.0f, 5.0f)));
+	drawModelWithTex(&bunny, dirtTex);
 
 	printError("display");
 	glutSwapBuffers();

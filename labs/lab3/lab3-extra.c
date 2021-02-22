@@ -213,10 +213,12 @@ void init(void)
     glClearColor(0.1, 0.1, 0.1, 0);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     printError("GL inits");
 
     // Load and compile shader
-    program = loadShaders("lab3-4.vert", "lab3-4.frag");
+    program = loadShaders("lab3-extra.vert", "lab3-extra.frag");
     printError("init shader");
 
 	// Upload textures to GPU
@@ -372,7 +374,6 @@ void display(void)
     glUniform1i(isSkyboxAttr, 0);
 
     // Draw the ground
-	glUniform1f(glGetUniformLocation(p, "specularExpt"), groundSpecular);
     setModelMatrix(p, T(0.0f, -10.0f, 0.0f));
     glBindTexture(GL_TEXTURE_2D, grassTex);
     glBindVertexArray(groundVAO); // Select VAO

@@ -1,0 +1,28 @@
+1. How can you get all four blades to rotate with just one time-dependent rotation matrix?
+Multiplicera rotations- och translationsmatrisen till höger med en rotationsmatris med pi/2, pi, 3pi/2.
+1. How do you make the wings follow the body's movements?
+Multiplicera vingarnas matris med husets matris. (se koden)
+
+2. What kind of control did you implement?
+WASD för att flyga, piltangenter för att titta omkring och mellanslag/c för upp och ner
+2. Can you make this kind of control in some other way than manipulating a "look-at" matrix?
+Manipulera view-matrisen direkt(?).
+
+3. How did you handle the camera matrix for the skybox?
+Använde en uniform boolean för att nollställa 4e kolumnen i view-matrisen (se kod).
+3. How did you represent the objects? Is this a good way to manage a scene or would you do it differently for a "real" application?
+En struct med Model * och GLuint vao. För en riktig applikation behöver nog mer saker sparas.
+I del 4 innehåller structen även GLuint texture och float specularExpt.
+3. What special considerations are needed when rendering a skybox?
+Disable translations in view matrix, disable GL_CULL_FACE, GL_DEPTH_TEST, disable lighting.
+3. What is the problem with the skybox object used in the lab? (The problem doesn't have to be corrected.)
+If the ground is not infinitely large there is a gap at the end of the skybox.
+
+4. How do you generate a vector from the surface to the eye?
+vec3 v = normalize(vec3(0.0) - viewPosition);
+4. Which vectors need renormalization in the fragment shader?
+s = normalize(lightDirPos);
+s = normalize(lightDirPos - viewPosition);
+vec3 r = normalize(2.0 * transfNormal * dot(s, transfNormal) - s);
+
+extra. How did you remove the errors caused by transparency?
