@@ -290,9 +290,9 @@ int glutGetMenu(void)
 
 static void doKeyboardEvent(NSEvent *theEvent, void (*func)(unsigned char key, int x, int y), void (*specialfunc)(unsigned char key, int x, int y), int keyMapValue)
 {
-	char *chars;
+	unsigned char *chars;
 	
-	chars = (char *)[[theEvent characters] cStringUsingEncoding: NSMacOSRomanStringEncoding];
+	chars = (unsigned char *)[[theEvent characters] cStringUsingEncoding: NSMacOSRomanStringEncoding];
 	NSPoint mouseDownPos = [theEvent locationInWindow];
 
 	if (chars != NULL)

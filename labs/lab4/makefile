@@ -1,7 +1,7 @@
 # set this variable to the director in which you saved the common files
 commondir = ../new-common/
 osname := $(shell uname)
-warnflags = -Wall -Wextra -Wno-deprecated-declarations -Wno-unused-variable -Wno-unused-parameter
+flags = -Wall -Wextra -Wno-deprecated-declarations -Wno-unused-variable -Wno-unused-parameter -g
 ifeq ($(osname),Darwin)
 	osname = Mac
 	linkflags = -framework Foundation -lobjc -framework OpenGl -framework GLUT -lm -framework CoreFoundation -framework ApplicationServices -framework IOKit -framework CoreServices -framework Cocoa -framework Carbon
@@ -18,7 +18,7 @@ binaries=lab4-1 lab4-2
 all: $(binaries)
 
 %: %.c $(sources) $(headers)
-	gcc $(warnflags) -o $@ -I$(commondir) -I$(commondir)$(osname) -DGL_GLEXT_PROTOTYPES $(sources) $< $(linkflags)
+	gcc $(flags) -o $@ -I$(commondir) -I$(commondir)$(osname) -DGL_GLEXT_PROTOTYPES $(sources) $< $(linkflags)
 
 clean:
 	rm $(binaries)
