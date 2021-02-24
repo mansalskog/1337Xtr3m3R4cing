@@ -4,3 +4,5 @@
 3 * 3 squares = 3 * 3 * 2 triangles = 18 triangles
 2. Did you need to extend your camera movement code? How?
 Added mouse look.
+3. Which method did you use to find the normal vector?
+High precision version. With weighed average on angle. Edges look bad.
