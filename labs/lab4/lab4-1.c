@@ -17,7 +17,7 @@ Model* GenerateTerrain(TextureData *tex)
 {
 	int vertexCount = tex->width * tex->height;
 	int triangleCount = (tex->width-1) * (tex->height-1) * 2;
-	int x, z;
+	GLuint x, z;
 
 /*
 	GLfloat *vertexArray = malloc(sizeof(GLfloat) * 3 * vertexCount);

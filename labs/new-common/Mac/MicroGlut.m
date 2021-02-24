@@ -356,7 +356,7 @@ static void doKeyboardEvent(NSEvent *theEvent, void (*func)(unsigned char key, i
 		if (func != NULL) // Change 150114
 			func(code, mouseDownPos.x, mouseDownPos.y); // TO DO: x and y
 // NOTE: This was a bug until I modified the special key constants! We can now check gKeymap with normal ASCII and special codes with the same table!
-		gKeymap[code] = keyMapValue;
+		gKeymap[(int) code] = keyMapValue;
 	}
 }
 
@@ -668,7 +668,7 @@ NSView	*view;
 
 // Timer!
 @implementation TimerController
--(void)timerFireMethod:(NSTimer *)t;
+-(void)timerFireMethod:(NSTimer *)t
 {
 	TimerInfoRec *tr;
 	
