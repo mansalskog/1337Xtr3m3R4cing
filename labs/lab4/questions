@@ -1,0 +1,6 @@
+1. What kind of data does the heightmap image data hold? What range is the heightmap data?
+8-bit RGB pixels that are grayscale. 0-255 is the range.
+1. The terrain is 4x4. How many polygons does it draw?
+3 * 3 squares = 3 * 3 * 2 triangles = 18 triangles
+2. Did you need to extend your camera movement code? How?
+Added mouse look.
