@@ -43,7 +43,7 @@ Model* GenerateTerrain(TextureData *tex)
 {
 	int vertexCount = tex->width * tex->height;
 	int triangleCount = (tex->width-1) * (tex->height-1) * 2;
-	GLuint x, z;
+	int x, z;
 
 	vec3 *vertexArray = malloc(sizeof(vec3) * vertexCount);
 	vec3 *normalArray = malloc(sizeof(vec3) * vertexCount);
@@ -51,8 +51,8 @@ Model* GenerateTerrain(TextureData *tex)
 	GLuint *indexArray = malloc(sizeof(GLuint) * triangleCount * 3);
 
 	printf("bpp %d\n", tex->bpp);
-	for (x = 0; x < tex->width; x++)
-		for (z = 0; z < tex->height; z++)
+	for (x = 0; x < (int) tex->width; x++)
+		for (z = 0; z < (int) tex->height; z++)
 		{
 // Vertex array. You need to scale this properly
 			vertexArray[x + z * tex->width] = SetVector(
@@ -65,8 +65,8 @@ Model* GenerateTerrain(TextureData *tex)
 			texCoordArray[x + z * tex->width].x = x; // (float)x / tex->width;
 			texCoordArray[x + z * tex->width].y = z; // (float)z / tex->height;
 		}
-	for (x = 0; x < tex->width-1; x++)
-		for (z = 0; z < tex->height-1; z++)
+	for (x = 0; x < (int) tex->width-1; x++)
+		for (z = 0; z < (int) tex->height-1; z++)
 		{
 		// Triangle 1
 			indexArray[(x + z * (tex->width-1))*6 + 0] = x + z * tex->width;
@@ -78,18 +78,18 @@ Model* GenerateTerrain(TextureData *tex)
 			indexArray[(x + z * (tex->width-1))*6 + 5] = x+1 + (z+1) * tex->width;
 		}
 
-	for (x = 0; x < tex->width; x++)
-		for (z = 0; z < tex->height; z++)
+	for (x = 0; x < (int) tex->width; x++)
+		for (z = 0; z < (int) tex->height; z++)
 		{
 			float totAng = 0.0;
 			vec3 normal = {0.0, 0.0, 0.0};
-			if (x+1 < tex->width && z+1 < tex->height) {
+			if (x+1 < (int) tex->width && z+1 < (int) tex->height) {
 				totAng += 90.0;
 				normal = VectorAdd(normal,
 					ScalarMult(normalForTriangle(vertexArray, tex->width,
 						x, z, x+1, z, x, z+1), 90.0));
 			}
-			if (x-1 >= 0 && z+1 < tex->height) {
+			if (x-1 >= 0 && z+1 < (int) tex->height) {
 				totAng += 45.0;
 				normal = VectorAdd(normal,
 					ScalarMult(normalForTriangle(vertexArray, tex->width,
@@ -104,7 +104,7 @@ Model* GenerateTerrain(TextureData *tex)
 					ScalarMult(normalForTriangle(vertexArray, tex->width,
 						x, z, x-1, z, x, z-1), 90.0));
 			}
-			if (x+1 < tex->width && z-1 > 0) {
+			if (x+1 < (int) tex->width && z-1 > 0) {
 				totAng += 90.0;
 				normal = VectorAdd(normal,
 					ScalarMult(normalForTriangle(vertexArray, tex->width,

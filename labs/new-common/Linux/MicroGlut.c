@@ -479,7 +479,7 @@ void glutMainLoop()
          switch (event.type)
          {
          	case ClientMessage:
-         		if (event.xclient.data.l[0] == wmDeleteMessage) // quit!
+         		if ((Atom) event.xclient.data.l[0] == wmDeleteMessage) // quit!
          			gRunning = 0;
 	         	break;
          	case Expose: 

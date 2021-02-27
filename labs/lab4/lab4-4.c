@@ -11,11 +11,12 @@
 #include "LittleOBJLoader.h"
 #include "LoadTGA.h"
 
-const int WIN_WIDTH = 600;
-const int WIN_HEIGHT = 600;
+const int WIN_WIDTH = 1600;
+const int WIN_HEIGHT = 1600;
 
 const float TILE_WIDTH_X = 3.0;
 const float TILE_WIDTH_Z = 3.0;
+const float TILE_HEIGHT_Y = 0.5;
 
 int lightCount = 2;
 GLfloat lightSourcesDirPosArr[] = {
@@ -39,43 +40,70 @@ vec3 normalForTriangle(
 	vec3 a = vertexArray[x0 + z0 * width];
 	vec3 b = vertexArray[x1 + z1 * width];
 	vec3 c = vertexArray[x2 + z2 * width];
-	return CrossProduct(VectorSub(b, a), VectorSub(c, a));
+	return Normalize(CrossProduct(VectorSub(b, a), VectorSub(c, a)));
 }
 
 float pyth(float dx, float dy) {
 	return sqrt(dx*dx + dy*dy);
 }
 
+float lerp(float h0, float h1, float t) {
+	return h0 * t + (1 - t) * h1;
+}
+
 float hmValueAt(const TextureData *tex, int x0, int z0) {
-	return tex->imageData[(x0 + z0 * tex->width) * (tex->bpp/8)] / 10.0;
+	return tex->imageData[(x0 + z0 * tex->width) * (tex->bpp/8)] * TILE_HEIGHT_Y;
 }
 
 float hmHeightAt(const TextureData *tex, float x, float z) {
-	int x0 = (int) (x / TILE_WIDTH_X);
-	int z0 = (int) (z / TILE_WIDTH_Z);
-	float dx = x - x0;
-	float dz = z - z0;
-	float h00 = (dx + dz) * hmValueAt(tex, x0, z0);
-	float h01 = (dx + (1.0 - dz)) * hmValueAt(tex, x0, z0+1);
-	float h10 = ((1.0 - dx) + dz) * hmValueAt(tex, x0+1, z0);
-	float h11 = ((1.0 - dx) + (1.0 - dz)) * hmValueAt(tex, x0+1, z0+1);
-	return (h00 + h01 + h10 + h11) / 4.0;
+	int x0 = (int) floor(x / TILE_WIDTH_X);
+	int z0 = (int) floor(z / TILE_WIDTH_Z);
+	float dx = x / TILE_WIDTH_X - (float) x0;
+	float dz = z / TILE_WIDTH_Z - (float) z0;
+
+	float h00 = hmValueAt(tex, x0, z0);
+	float h01 = hmValueAt(tex, x0, z0+1);
+	float h10 = hmValueAt(tex, x0+1, z0);
+	float h11 = hmValueAt(tex, x0+1, z0+1);
+
+	vec3 v00 = SetVector(x0 * TILE_WIDTH_X, h00, z0 * TILE_WIDTH_Z);
+	vec3 v01 = SetVector(x0 * TILE_WIDTH_X, h01, (z0+1) * TILE_WIDTH_Z);
+	vec3 v10 = SetVector((x0+1) * TILE_WIDTH_X, h10, z0 * TILE_WIDTH_Z);
+	vec3 v11 = SetVector((x0+1) * TILE_WIDTH_X, h11, (z0+1) * TILE_WIDTH_Z);
+
+	if (dx + dz < 1.0) {
+		vec3 normal = Normalize(CrossProduct(VectorSub(v01, v00), VectorSub(v10, v00)));
+// normalForTriangle(vertexArray, tex->width, x0, z0, x0, z0+1, x0+1, z);
+		float y = (DotProduct(normal, v00) - normal.x * x - normal.z * z) / normal.y;
+		return y;
+		// return (h00 * pyth(dx, dz) + h10 * pyth(1.0-dx, dz) + h01 * pyth(dx, 1.0-dz))
+			// / (pyth(dx, dz) + pyth(1.0-dx, dz) + pyth(dx, 1.0-dz));
+	} else {
+		// vec3 normal = normalForTriangle(vertexArray, tex->width, x0+1, z0, x0, z0+1, x0+1, z+1);
+		vec3 normal = Normalize(CrossProduct(VectorSub(v01, v10), VectorSub(v11, v10)));
+		float y = (DotProduct(normal, v11) - normal.x * x - normal.z * z) / normal.y;
+		return y;
+		// return (h11 * pyth(1.0-dx, 1.0-dz) + h10 * pyth(1.0-dx, dz) + h01 * pyth(dx, 1.0-dz))
+			// / (pyth(1.0-dx, 1.0-dz) + pyth(1.0-dx, dz) + pyth(dx, 1.0-dz));
+	}
 }
+
+vec3 *vertexArray;
 
 Model* GenerateTerrain(TextureData *tex)
 {
 	int vertexCount = tex->width * tex->height;
 	int triangleCount = (tex->width-1) * (tex->height-1) * 2;
-	GLuint x, z;
+	int x, z;
 
-	vec3 *vertexArray = malloc(sizeof(vec3) * vertexCount);
+	vertexArray = malloc(sizeof(vec3) * vertexCount);
 	vec3 *normalArray = malloc(sizeof(vec3) * vertexCount);
 	vec2 *texCoordArray = malloc(sizeof(vec2) * vertexCount);
 	GLuint *indexArray = malloc(sizeof(GLuint) * triangleCount * 3);
 
 	printf("bpp %d\n", tex->bpp);
-	for (x = 0; x < tex->width; x++)
-		for (z = 0; z < tex->height; z++)
+	for (x = 0; x < (int) tex->width; x++)
+		for (z = 0; z < (int) tex->height; z++)
 		{
 // Vertex array. You need to scale this properly
 			vertexArray[x + z * tex->width] = SetVector(
@@ -88,8 +116,8 @@ Model* GenerateTerrain(TextureData *tex)
 			texCoordArray[x + z * tex->width].x = x; // (float)x / tex->width;
 			texCoordArray[x + z * tex->width].y = z; // (float)z / tex->height;
 		}
-	for (x = 0; x < tex->width-1; x++)
-		for (z = 0; z < tex->height-1; z++)
+	for (x = 0; x < (int) tex->width-1; x++)
+		for (z = 0; z < (int) tex->height-1; z++)
 		{
 		// Triangle 1
 			indexArray[(x + z * (tex->width-1))*6 + 0] = x + z * tex->width;
@@ -101,18 +129,18 @@ Model* GenerateTerrain(TextureData *tex)
 			indexArray[(x + z * (tex->width-1))*6 + 5] = x+1 + (z+1) * tex->width;
 		}
 
-	for (x = 0; x < tex->width; x++)
-		for (z = 0; z < tex->height; z++)
+	for (x = 0; x < (int) tex->width; x++)
+		for (z = 0; z < (int) tex->height; z++)
 		{
 			float totAng = 0.0;
 			vec3 normal = {0.0, 0.0, 0.0};
-			if (x+1 < tex->width && z+1 < tex->height) {
+			if (x+1 < (int) tex->width && z+1 < (int) tex->height) {
 				totAng += 90.0;
 				normal = VectorAdd(normal,
 					ScalarMult(normalForTriangle(vertexArray, tex->width,
 						x, z, x+1, z, x, z+1), 90.0));
 			}
-			if (x-1 >= 0 && z+1 < tex->height) {
+			if (x-1 >= 0 && z+1 < (int) tex->height) {
 				totAng += 45.0;
 				normal = VectorAdd(normal,
 					ScalarMult(normalForTriangle(vertexArray, tex->width,
@@ -127,7 +155,7 @@ Model* GenerateTerrain(TextureData *tex)
 					ScalarMult(normalForTriangle(vertexArray, tex->width,
 						x, z, x-1, z, x, z-1), 90.0));
 			}
-			if (x+1 < tex->width && z-1 > 0) {
+			if (x+1 < (int) tex->width && z-1 > 0) {
 				totAng += 90.0;
 				normal = VectorAdd(normal,
 					ScalarMult(normalForTriangle(vertexArray, tex->width,
@@ -183,6 +211,7 @@ void init(void)
 	glUniformMatrix4fv(glGetUniformLocation(program, "projMatrix"), 1, GL_TRUE, projectionMatrix.m);
 	glUniform1i(glGetUniformLocation(program, "tex"), 0); // Texture unit 0
 	LoadTGATextureSimple("maskros512.tga", &tex1);
+	LoadTGATextureSimple("conc.tga", &tex2);
 
 	// Load terrain data
 	LoadTGATextureData("fft-terrain.tga", &ttex);
@@ -227,20 +256,20 @@ void display(void)
 	glBindTexture(GL_TEXTURE_2D, tex1);		// Bind Our Texture tex1
 	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
 
-	x = 60.0 + 30.0 * cos(t);
-	z = 60.0 + 30.0 * sin(t);
+	x = 60.0 + 30.0 * cos(t / 10.0);
+	z = 60.0 + 30.0 * sin(t / 10.0);
 	y = hmHeightAt(&ttex, x, z);
 	modelView = T(x, y, z);
 	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	glBindTexture(GL_TEXTURE_2D, tex1);		// Bind Our Texture tex1
+	glBindTexture(GL_TEXTURE_2D, tex2);		// Bind Our Texture tex1
 	DrawModel(sphere, program, "inPosition", "inNormal", "inTexCoord");
 
-	x = 60.0 + 50.0 * cos(t);
-	z = 60.0 + 50.0 * sin(t);
+	x = 60.0 + 50.0 * cos(t / 10.0);
+	z = 60.0 + 50.0 * sin(t / 10.0);
 	y = hmHeightAt(&ttex, x, z);
 	modelView = T(x, y, z);
 	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	glBindTexture(GL_TEXTURE_2D, tex1);		// Bind Our Texture tex1
+	glBindTexture(GL_TEXTURE_2D, tex2);		// Bind Our Texture tex1
 	DrawModel(octagon, program, "inPosition", "inNormal", "inTexCoord");
 
 	printError("display 2");
