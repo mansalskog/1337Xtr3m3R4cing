@@ -15,3 +15,6 @@ Used floor function on x and z, then checked on which side of the line x+z=1 it 
 
 4. How did you calculate the height from the surface?
 Used the plane equation y=dot(((x0,y0,z0),normal)-x*normal.x-z*normal.z)/normal.y
+
+5. What kind of multitexturing function did you implement?
+Snow and a lake.

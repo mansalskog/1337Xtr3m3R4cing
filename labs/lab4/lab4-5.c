@@ -211,6 +211,7 @@ void init(void)
 	glUniformMatrix4fv(glGetUniformLocation(program, "projMatrix"), 1, GL_TRUE, projectionMatrix.m);
 	glUniform1i(glGetUniformLocation(program, "tex0"), 0); // Texture unit 0
 	glUniform1i(glGetUniformLocation(program, "tex1"), 1); // Texture unit 1
+	glUniform1i(glGetUniformLocation(program, "tex2"), 2); // Texture unit 2
 	LoadTGATextureSimple("maskros512.tga", &maskros);
 	LoadTGATextureSimple("conc.tga", &concrete);
 	LoadTGATextureSimple("dirt.tga", &dirt);
@@ -260,6 +261,8 @@ void display(void)
 	glBindTexture(GL_TEXTURE_2D, grass);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, dirt);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, concrete);
 	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
 
 	x = 60.0 + 30.0 * cos(t / 3.0);

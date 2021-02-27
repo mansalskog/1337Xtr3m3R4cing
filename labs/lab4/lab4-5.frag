@@ -9,6 +9,7 @@ out vec4 outColor;
 
 uniform sampler2D tex0;
 uniform sampler2D tex1;
+uniform sampler2D tex2;
 uniform mat4 camMatrix;
 uniform mat4 mdlMatrix;
 
@@ -53,9 +54,11 @@ void main(void)
 	}
 	vec4 totalLight = vec4(ambientLight + diffuseLight + specularLight, 1.0);
 
-	if (worldPos.y < 70.0 + 1.0 * sin(worldPos.x + worldPos.z)) {
-		outColor = texture(tex0, texCoord) * totalLight;
-	} else {
+	if (worldPos.y > 70.0 + 1.0 * sin(worldPos.x + worldPos.z)) {
 		outColor = texture(tex1, texCoord) * totalLight;
+	} else if (worldPos.y < 15.0) {
+		outColor = texture(tex2, texCoord) * totalLight;
+	} else {
+		outColor = texture(tex0, texCoord) * totalLight;
 	}
 }
