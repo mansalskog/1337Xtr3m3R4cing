@@ -13,7 +13,7 @@ else
 	sources := $(commondir)GL_utilities.c $(commondir)VectorUtils3.c $(commondir)LittleOBJLoader.c $(commondir)LoadTGA.c $(commondir)$(osname)/MicroGlut.c
 	headers := $(commondir)GL_utilities.h $(commondir)VectorUtils3.h $(commondir)LittleOBJLoader.h $(commondir)LoadTGA.h $(commondir)$(osname)/MicroGlut.h
 endif
-binaries = lab4-1 lab4-2 lab4-3 lab4-4
+binaries = lab4-1 lab4-2 lab4-3 lab4-4 lab4-5
 
 all: $(binaries)
 
