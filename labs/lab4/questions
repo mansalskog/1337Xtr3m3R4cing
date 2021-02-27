@@ -18,3 +18,10 @@ Used the plane equation y=dot(((x0,y0,z0),normal)-x*normal.x-z*normal.z)/normal.
 
 5. What kind of multitexturing function did you implement?
 Snow and a lake.
+
+6b. How did you apply the slope on objects?
+Used Gram-Schmidt to get an ON-transformation matrix that takes (0,1,0) to the normal vector
+of the triangle the object is currently on.
+
+6c. How did you identify the water surface?
+If y is lower than 5.
