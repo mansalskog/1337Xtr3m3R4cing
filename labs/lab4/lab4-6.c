@@ -56,6 +56,11 @@ float hmValueAt(const TextureData *tex, int x0, int z0) {
 }
 
 float hmHeightAt(const TextureData *tex, float x, float z) {
+	// Loop heightmap modulo width
+	const float w = TILE_WIDTH_X * tex->width;
+	const float h = TILE_WIDTH_Z * tex->height;
+	x = fmod(fmod(x, w) + w, w);
+	z = fmod(fmod(z, h) + h, h);
 	int x0 = (int) floor(x / TILE_WIDTH_X);
 	int z0 = (int) floor(z / TILE_WIDTH_Z);
 	float dx = x / TILE_WIDTH_X - (float) x0;
@@ -218,6 +223,10 @@ void init(void)
 	glDisable(GL_CULL_FACE);
 	printError("GL inits");
 
+	// Enable transparency
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 	projectionMatrix = frustum(-0.1, 0.1, -0.1, 0.1, 0.2, 500.0);
 
 	// Load and compile shader
@@ -253,6 +262,7 @@ void init(void)
 const vec3 up_vector = {0.0, 1.0, 0.0};
 vec3 view_target = {2, 0, 2};
 vec3 view_pos = {80, 5, 108};
+int fogEnable = 1;
 
 void display(void)
 {
@@ -273,6 +283,9 @@ void display(void)
 	GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
 	glUniform1f(glGetUniformLocation(program, "time"), t);
 
+	glUniform1i(glGetUniformLocation(program, "fogEnable"), fogEnable);
+
+	// Draw the ground
 	modelView = IdentityMatrix();
 	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
 	glActiveTexture(GL_TEXTURE0);
@@ -281,6 +294,34 @@ void display(void)
 	glBindTexture(GL_TEXTURE_2D, dirt);
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, concrete);
+	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
+
+	// Draw eight copies of the ground in every direction
+	const float w = TILE_WIDTH_X * ttex.width;
+	const float h = TILE_WIDTH_Z * ttex.height;
+	modelView = T(w, 0.0, 0.0);
+	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
+	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
+	modelView = T(-w, 0.0, 0.0);
+	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
+	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
+	modelView = T(0.0, 0.0, h);
+	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
+	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
+	modelView = T(0.0, 0.0, -h);
+	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
+	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
+	modelView = T(w, 0.0, h);
+	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
+	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
+	modelView = T(-w, 0.0, -h);
+	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
+	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
+	modelView = T(-w, 0.0, h);
+	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
+	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
+	modelView = T(w, 0.0, -h);
+	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
 	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
 
 	x = 60.0 + 30.0 * cos(t / 3.0);
@@ -428,6 +469,8 @@ void keyboard(unsigned char key, int x, int y) {
 		} else {
 			glutHideCursor();
 		}
+	} else if (key == 'f') {
+		fogEnable = !fogEnable;
 	}
 }
 

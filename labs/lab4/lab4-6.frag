@@ -14,6 +14,7 @@ uniform mat4 camMatrix;
 uniform mat4 mdlMatrix;
 
 uniform float time;
+uniform bool fogEnable;
 
 // Lighting
 uniform vec3 lightSourcesDirPosArr[2];
@@ -63,5 +64,13 @@ void main(void)
 		outColor = vec4(0.2, 0.2, 0.9, 1.0) * texture(tex2, texCoord) * totalLight;
 	} else {
 		outColor = texture(tex0, texCoord) * totalLight;
+	}
+
+	const float fogDistance = 100.0;
+	if (fogEnable && length(viewPos) > fogDistance) {
+		// Fade out over 50 units
+		float t = (length(viewPos) - fogDistance) / 50.0;
+		t = smoothstep(0.0, 1.0, t);
+		outColor = mix(outColor, vec4(1.0, 1.0, 1.0, 0.0), t);
 	}
 }
