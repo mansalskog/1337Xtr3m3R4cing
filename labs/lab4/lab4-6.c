@@ -328,15 +328,15 @@ void display(void)
 	z = 60.0 + 30.0 * sin(t / 3.0);
 	y = hmHeightAt(&ttex, x, z);
 	vec3 n = hmNormalAt(&ttex, x, z);
-	vec3 v = VectorSub(SetVector(1.0, 0.0, 0.0), ScalarMult(n, n.x));
+	vec3 v = Normalize(VectorSub(SetVector(1.0, 0.0, 0.0), ScalarMult(n, n.x)));
 	vec3 u = Normalize(CrossProduct(n, v));
 	mat4 tiltMatrix1 = {{
-		v.x, v.y, v.z, 0.0,
-		n.x, n.y, n.z, 0.0,
-		u.x, u.y, u.z, 0.0,
+		v.x, n.x, u.x, 0.0,
+		v.y, n.y, u.y, 0.0,
+		v.z, n.z, u.z, 0.0,
 		0.0, 0.0, 0.0, 1.0,
 	}};
-	modelView = Mult(Mult(T(x, y, z), tiltMatrix1), S(5.0, 5.0, 5.0));
+	modelView = Mult(Mult(T(x, y, z), S(5.0, 5.0, 5.0)), tiltMatrix1);
 	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
 	glBindTexture(GL_TEXTURE_2D, maskros);
 	DrawModel(sphere, program, "inPosition", "inNormal", "inTexCoord");
@@ -345,15 +345,15 @@ void display(void)
 	z = 60.0 + 50.0 * pow(sin(t / 4.0), 1);
 	y = hmHeightAt(&ttex, x, z);
 	n = hmNormalAt(&ttex, x, z);
-	v = VectorSub(SetVector(1.0, 0.0, 0.0), ScalarMult(n, n.x));
+	v = Normalize(VectorSub(SetVector(1.0, 0.0, 0.0), ScalarMult(n, n.x)));
 	u = Normalize(CrossProduct(n, v));
 	mat4 tiltMatrix2 = {{
-		v.x, v.y, v.z, 0.0,
-		n.x, n.y, n.z, 0.0,
-		u.x, u.y, u.z, 0.0,
+		v.x, n.x, u.x, 0.0,
+		v.y, n.y, u.y, 0.0,
+		v.z, n.z, u.z, 0.0,
 		0.0, 0.0, 0.0, 1.0,
 	}};
-	modelView = Mult(Mult(T(x, y, z), tiltMatrix2), S(5.0, 5.0, 5.0));
+	modelView = Mult(Mult(T(x, y, z), S(5.0, 5.0, 5.0)), tiltMatrix2);
 	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
 	glBindTexture(GL_TEXTURE_2D, maskros);
 	DrawModel(octagon, program, "inPosition", "inNormal", "inTexCoord");
