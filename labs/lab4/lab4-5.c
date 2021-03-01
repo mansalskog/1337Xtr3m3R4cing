@@ -11,8 +11,8 @@
 #include "LittleOBJLoader.h"
 #include "LoadTGA.h"
 
-const int WIN_WIDTH = 1600;
-const int WIN_HEIGHT = 1600;
+const int WIN_WIDTH = 800;
+const int WIN_HEIGHT = 800;
 
 const float TILE_WIDTH_X = 3.0;
 const float TILE_WIDTH_Z = 3.0;

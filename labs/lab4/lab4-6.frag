@@ -58,7 +58,7 @@ void main(void)
 
 	if (worldPos.y > 70.0 + 1.0 * sin(worldPos.x + worldPos.z)) {
 		outColor = texture(tex1, texCoord) * totalLight;
-	} else if (worldPos.y < 5.0 + 0.7 * sin(sin(time) * 1.5 * time + worldPos.x + worldPos.z)) {
+	} else if (worldPos.y < 5.0 + 0.7 * sin(sin(time) * 0.5 * time + worldPos.x + worldPos.z)) {
 		// outColor = texture(tex2, texCoord) * totalLight;
 		outColor = vec4(0.2, 0.2, 0.9, 1.0) * texture(tex2, texCoord) * totalLight;
 	} else {

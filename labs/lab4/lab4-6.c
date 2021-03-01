@@ -11,8 +11,8 @@
 #include "LittleOBJLoader.h"
 #include "LoadTGA.h"
 
-const int WIN_WIDTH = 1600;
-const int WIN_HEIGHT = 1600;
+const int WIN_WIDTH = 800;
+const int WIN_HEIGHT = 800;
 
 const float TILE_WIDTH_X = 3.0;
 const float TILE_WIDTH_Z = 3.0;
@@ -322,43 +322,54 @@ void display(void)
 	glutSwapBuffers();
 }
 
+float fall_speed = 0.0f;
 
-void handleFlyingControls(float delta) {
+void handleMovingControls(float delta) {
 	const float MOVE_SPEED = 50.0f;
 	const float LOOK_SPEED = 200.0f;
-	// Fly around in the world, update view matrix for next frame
-	const vec3 forward_vector = Normalize(VectorSub(view_target, view_pos));
-	// cross product of two unit vectors is also unit
-	const vec3 right_vector = Normalize(CrossProduct(forward_vector, up_vector));
+	const float FALL_ACCEL = 50.0f;
+	const float JUMP_SPEED = 50.0f;
+	const vec3 forward = Normalize(VectorSub(view_target, view_pos));
+	const vec3 proj_forward = Normalize(SetVector(forward.x, 0, forward.z));
+	const vec3 right = CrossProduct(proj_forward, up_vector);
+	const vec3 proj_right = Normalize(SetVector(right.x, 0, right.z));
 	// Forward and backward
 	if (glutKeyIsDown('w')) {
-		view_pos = VectorAdd(view_pos, ScalarMult(forward_vector, delta * MOVE_SPEED));
+		view_pos = VectorAdd(view_pos, ScalarMult(proj_forward, delta * MOVE_SPEED));
 	}
 	if (glutKeyIsDown('s')) {
-		view_pos = VectorSub(view_pos, ScalarMult(forward_vector, delta * MOVE_SPEED));
+		view_pos = VectorSub(view_pos, ScalarMult(proj_forward, delta * MOVE_SPEED));
 	}
 	// Strafing left and right
 	if (glutKeyIsDown('d')) {
-		view_pos = VectorAdd(view_pos, ScalarMult(right_vector, delta * MOVE_SPEED));
+		view_pos = VectorAdd(view_pos, ScalarMult(proj_right, delta * MOVE_SPEED));
 	}
 	if (glutKeyIsDown('a')) {
-		view_pos = VectorSub(view_pos, ScalarMult(right_vector, delta * MOVE_SPEED));
+		view_pos = VectorSub(view_pos, ScalarMult(proj_right, delta * MOVE_SPEED));
 	}
-	// Up and down
-	if (glutKeyIsDown(' ')) {
-		view_pos = VectorAdd(view_pos, ScalarMult(up_vector, delta * MOVE_SPEED));
-	}
-	if (glutKeyIsDown('c')) {
-		view_pos = VectorSub(view_pos, ScalarMult(up_vector, delta * MOVE_SPEED));
+	// Put eyes at correct height
+	float ground_y = hmHeightAt(&ttex, view_pos.x, view_pos.z) + 5.0f;
+	if (view_pos.y > ground_y) {
+		// Falling
+		fall_speed += FALL_ACCEL * delta;
+		view_pos.y -= fall_speed * delta;
+	} else if (glutKeyIsDown(' ')) {
+		// Jumping
+		fall_speed = -JUMP_SPEED;
+		view_pos.y -= fall_speed * delta;
+	} else {
+		// Standing
+		view_pos.y = ground_y;
+		fall_speed = 0.0f;
 	}
 	// Put view target 100 units in front of view pos
-	view_target = VectorAdd(view_pos, ScalarMult(forward_vector, 100.0f));
+	view_target = VectorAdd(view_pos, ScalarMult(forward, 100.0f));
 	// Turning
 	if (glutKeyIsDown(GLUT_KEY_RIGHT)) {
-		view_target = VectorAdd(view_target, ScalarMult(right_vector, delta * LOOK_SPEED));
+		view_target = VectorAdd(view_target, ScalarMult(proj_right, delta * LOOK_SPEED));
 	}
 	if (glutKeyIsDown(GLUT_KEY_LEFT)) {
-		view_target = VectorSub(view_target, ScalarMult(right_vector, delta * LOOK_SPEED));
+		view_target = VectorSub(view_target, ScalarMult(proj_right, delta * LOOK_SPEED));
 	}
 	if (glutKeyIsDown(GLUT_KEY_UP)) {
 		view_target = VectorAdd(view_target, ScalarMult(up_vector, delta * LOOK_SPEED));
@@ -395,7 +406,7 @@ void timer(int i)
 {
 	glutTimerFunc(20, &timer, i);
     GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	handleFlyingControls(t - prev_t);
+	handleMovingControls(t - prev_t);
 	prev_t = t;
 	glutPostRedisplay();
 }
