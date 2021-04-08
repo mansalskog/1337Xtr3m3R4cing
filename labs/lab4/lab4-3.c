@@ -14,29 +14,40 @@
 const int WIN_WIDTH = 600;
 const int WIN_HEIGHT = 600;
 
-int lightCount = 2;
+const float HM_SCALE = 2.0;
+
+int lightCount = 3;
 GLfloat lightSourcesDirPosArr[] = {
 	-1.0, -1.0, -1.0,
-	10.0, 10.0, 10.0,
+	128.0, 50.0, 128.0,
+	150.0, 150.0, 0.0,
 };
 GLfloat lightSourcesColorArr[] = {
-	1.0, 1.0, 1.0,
-	1.0, 1.0, 1.0,
+	1.0, 0.0, 0.0,
+	0.0, 1.0, 0.0,
+	0.0, 0.0, 1.0,
 };
-int isDirectional[] = {1, 0};
+int isDirectional[] = {
+	1,
+	0,
+	0,
+};
 
 mat4 projectionMatrix;
 
+float hmValueAt(const TextureData *tex, int x0, int z0) {
+	return tex->imageData[(x0 + z0 * tex->width) * (tex->bpp/8)] / 7.0;
+}
+
 vec3 normalForTriangle(
-		const vec3 *vertexArray,
-		int width,
+		const TextureData *tex,
 		int x0, int z0,
 		int x1, int z1,
 		int x2, int z2) {
-	vec3 a = vertexArray[x0 + z0 * width];
-	vec3 b = vertexArray[x1 + z1 * width];
-	vec3 c = vertexArray[x2 + z2 * width];
-	return CrossProduct(VectorSub(b, a), VectorSub(c, a));
+	vec3 a = SetVector(x0 * HM_SCALE, hmValueAt(tex, x0, z0), z0 * HM_SCALE);
+	vec3 b = SetVector(x1 * HM_SCALE, hmValueAt(tex, x1, z1), z1 * HM_SCALE);
+	vec3 c = SetVector(x2 * HM_SCALE, hmValueAt(tex, x2, z2), z2 * HM_SCALE);
+	return Normalize(CrossProduct(VectorSub(b, a), VectorSub(c, a)));
 }
 
 Model* GenerateTerrain(TextureData *tex)
@@ -57,13 +68,13 @@ Model* GenerateTerrain(TextureData *tex)
 // Vertex array. You need to scale this properly
 			vertexArray[x + z * tex->width] = SetVector(
 					x / 1.0,
-					tex->imageData[(x + z * tex->width) * (tex->bpp/8)] / 10.0,
+					hmValueAt(tex, x, z),
 					z / 1.0);
 // Normal vectors. You need to calculate these.
 			normalArray[x + z * tex->width] = SetVector(0.0, 1.0, 0.0);
 // Texture coordinates. You may want to scale them.
-			texCoordArray[x + z * tex->width].x = x; // (float)x / tex->width;
-			texCoordArray[x + z * tex->width].y = z; // (float)z / tex->height;
+			texCoordArray[x + z * tex->width].x = x * HM_SCALE; // (float)x / tex->width;
+			texCoordArray[x + z * tex->width].y = z * HM_SCALE; // (float)z / tex->height;
 		}
 	for (x = 0; x < (int) tex->width-1; x++)
 		for (z = 0; z < (int) tex->height-1; z++)
@@ -81,39 +92,44 @@ Model* GenerateTerrain(TextureData *tex)
 	for (x = 0; x < (int) tex->width; x++)
 		for (z = 0; z < (int) tex->height; z++)
 		{
-			float totAng = 0.0;
 			vec3 normal = {0.0, 0.0, 0.0};
 			if (x+1 < (int) tex->width && z+1 < (int) tex->height) {
-				totAng += 90.0;
 				normal = VectorAdd(normal,
-					ScalarMult(normalForTriangle(vertexArray, tex->width,
-						x, z, x+1, z, x, z+1), 90.0));
-			}
-			if (x-1 >= 0 && z+1 < (int) tex->height) {
-				totAng += 45.0;
-				normal = VectorAdd(normal,
-					ScalarMult(normalForTriangle(vertexArray, tex->width,
-						x, z, x, z+1, x-1, z+1), 45.0));
-				normal = VectorAdd(normal,
-					ScalarMult(normalForTriangle(vertexArray, tex->width,
-						x, z, x-1, z+1, x-1, z), 45.0));
-			}
-			if (x-1 > 0 && z-1 > 0) {
-				totAng += 90.0;
-				normal = VectorAdd(normal,
-					ScalarMult(normalForTriangle(vertexArray, tex->width,
-						x, z, x-1, z, x, z-1), 90.0));
+					ScalarMult(normalForTriangle(tex,
+						x, z, x, z+1, x+1, z), 2.0));
 			}
 			if (x+1 < (int) tex->width && z-1 > 0) {
-				totAng += 90.0;
 				normal = VectorAdd(normal,
-					ScalarMult(normalForTriangle(vertexArray, tex->width,
-						x, z, x, z-1, x+1, z-1), 45.0));
+					ScalarMult(normalForTriangle(tex,
+						x, z, x+1, z, x+1, z-1), 1.0));
 				normal = VectorAdd(normal,
-					ScalarMult(normalForTriangle(vertexArray, tex->width,
-						x, z, x+1, z-1, x+1, z), 45.0));
+					ScalarMult(normalForTriangle(tex,
+						x, z, x+1, z-1, x, z-1), 1.0));
 			}
-			normalArray[x + z * tex->width] = ScalarMult(normal, totAng);
+			if (x-1 > 0 && z-1 > 0) {
+				normal = VectorAdd(normal,
+					ScalarMult(normalForTriangle(tex,
+						x, z, x, z-1, x-1, z), 2.0));
+			}
+			if (x-1 >= 0 && z+1 < (int) tex->height) {
+				normal = VectorAdd(normal,
+					ScalarMult(normalForTriangle(tex,
+						x, z, x-1, z, x-1, z+1), 1.0));
+				normal = VectorAdd(normal,
+					ScalarMult(normalForTriangle(tex,
+						x, z, x-1, z+1, x, z+1), 1.0));
+			}
+			/*
+			vec3 normal = {0.0, 0.0, 0.0};
+			if (0 <= x-1 && x+1 < (int) tex->width && 0 <= z-1 && z+1 < (int) tex->height)  {
+				vec3 a = SetVector((x-1) * HM_SCALE, hmValueAt(tex, x-1, z-1), (z-1) * HM_SCALE);
+				vec3 b = SetVector((x+1) * HM_SCALE, hmValueAt(tex, x+1, z), z * HM_SCALE);
+				vec3 c = SetVector(x * HM_SCALE, hmValueAt(tex, x, z+1), (z+1) * HM_SCALE);
+				normal = CrossProduct(VectorSub(c, a), VectorSub(b, a));
+				//normal = ScalarMult(normalForTriangle(tex, x, z, x, z+1, x+1, z), -1.0);
+			}
+			*/
+			normalArray[x + z * tex->width] = Normalize(normal);
 		}
 
 	// End of terrain generation
@@ -157,7 +173,7 @@ void init(void)
 
 	glUniformMatrix4fv(glGetUniformLocation(program, "projMatrix"), 1, GL_TRUE, projectionMatrix.m);
 	glUniform1i(glGetUniformLocation(program, "tex"), 0); // Texture unit 0
-	LoadTGATextureSimple("maskros512.tga", &tex1);
+	LoadTGATextureSimple("conc.tga", &tex1);
 
 // Load terrain data
 
@@ -186,6 +202,10 @@ void display(void)
 	printError("pre display");
 
 	glUseProgram(program);
+
+	// Handle time
+	GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	glUniform1f(glGetUniformLocation(program, "time"), t);
 
 	// Build matrix
 

@@ -18,6 +18,7 @@ void main(void)
 	texCoord = inTexCoord;
 	vec4 viewPosition = mdlMatrix * vec4(inPosition, 1.0);
 	viewPos = vec3(viewPosition);
+	// normal = normalize(mat3(mdlMatrix) * inNormal);
 	normal = inNormal;
 	gl_Position = projMatrix * viewPosition;
 }
