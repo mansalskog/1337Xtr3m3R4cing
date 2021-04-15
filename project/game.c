@@ -1,5 +1,3 @@
-// Lab 4, terrain generation
-
 #ifdef __APPLE__
 	#include <OpenGL/gl3.h>
 	// Linking hint for Lightweight IDE
@@ -43,14 +41,59 @@ vec3 normalForTriangle(
 	return Normalize(CrossProduct(VectorSub(b, a), VectorSub(c, a)));
 }
 
-float pyth(float dx, float dy) {
-	return sqrt(dx*dx + dy*dy);
+///// Utility functions /////
+
+float interpolate(float x0, float x1, float t) {
+	return x0 + (x1 - x0) * t;
 }
 
-float lerp(float h0, float h1, float t) {
-	return h0 * t + (1 - t) * h1;
+float smoothstep(float x0, float x1, float t) {
+	return x0 + (x1 - x0) * (3.0f - t * 2.0f) * t * t;
 }
 
+///// Terrain (heightmap) /////
+
+const float TERRAIN_WIDTH_FACTOR = 15.0f;
+const float TERRAIN_DEPTH_FACTOR = 15.0f;
+const float TERRAIN_HEIGHT_FACTOR = 10.0f;
+const int TERRAIN_WIDTH = 100;
+const int TERRAIN_DEPTH = 100;
+
+vec2 terrain_gradient(int x0, int z0) {
+	float angle = 2920.f * sin(x0 * 21942.f + z0 * 171324.f + 8912.f) * cos(x0 * 23157.f * z0 * 217832.f + 9758.f);
+	vec2 g = {cos(angle), sin(angle)};
+	return g;
+}
+
+/* Return dot product of vector from (x0, z0) to (x, z) with "random" unit vector
+ * depending only on x0 and z0.
+ */
+float terrain_dot_gradient(int x0, int z0, float x, float z) {
+	vec2 g = terrain_gradient(x0, z0);
+	float dx = x - x0;
+	float dz = z - z0;
+	return g.x * dx + g.y * dz;
+}
+
+float terrain_height_at(float x, float z) {
+	x /= TERRAIN_WIDTH_FACTOR;
+	z /= TERRAIN_DEPTH_FACTOR;
+
+	int x0 = (int) x;
+	int z0 = (int) z;
+	float dx = x - x0;
+	float dz = z - z0;
+
+	float d00 = terrain_dot_gradient(x0, z0, x, z);
+	float d01 = terrain_dot_gradient(x0, z0+1, x, z);
+	float d10 = terrain_dot_gradient(x0+1, z0, x, z);
+	float d11 = terrain_dot_gradient(x0+1, z0+1, x, z);
+
+	return TERRAIN_HEIGHT_FACTOR * smoothstep(smoothstep(d00, d10, dx), smoothstep(d01, d11, dx), dz);
+}
+
+/*
+ 
 float hmValueAt(const TextureData *tex, int x0, int z0) {
 	return tex->imageData[(x0 + z0 * tex->width) * (tex->bpp/8)] * TILE_HEIGHT_Y;
 }
@@ -87,16 +130,18 @@ float hmHeightAt(const TextureData *tex, float x, float z) {
 	}
 }
 
+*/
+
 vec3 hmNormalAt(const TextureData *tex, float x, float z) {
 	int x0 = (int) floor(x / TILE_WIDTH_X);
 	int z0 = (int) floor(z / TILE_WIDTH_Z);
 	float dx = x / TILE_WIDTH_X - (float) x0;
 	float dz = z / TILE_WIDTH_Z - (float) z0;
 
-	float h00 = hmValueAt(tex, x0, z0);
-	float h01 = hmValueAt(tex, x0, z0+1);
-	float h10 = hmValueAt(tex, x0+1, z0);
-	float h11 = hmValueAt(tex, x0+1, z0+1);
+	float h00 = terrain_height_at(x0, z0);
+	float h01 = terrain_height_at(x0, z0+1);
+	float h10 = terrain_height_at(x0+1, z0);
+	float h11 = terrain_height_at(x0+1, z0+1);
 
 	vec3 v00 = SetVector(x0 * TILE_WIDTH_X, h00, z0 * TILE_WIDTH_Z);
 	vec3 v01 = SetVector(x0 * TILE_WIDTH_X, h01, (z0+1) * TILE_WIDTH_Z);
@@ -112,10 +157,10 @@ vec3 hmNormalAt(const TextureData *tex, float x, float z) {
 	return normal;
 }
 
-Model* GenerateTerrain(TextureData *tex)
+Model* GenerateTerrain()
 {
-	int vertexCount = tex->width * tex->height;
-	int triangleCount = (tex->width-1) * (tex->height-1) * 2;
+	int vertexCount = TERRAIN_WIDTH * TERRAIN_DEPTH;
+	int triangleCount = (TERRAIN_WIDTH-1) * (TERRAIN_DEPTH-1) * 2;
 	int x, z;
 
 	vec3 *vertexArray = malloc(sizeof(vec3) * vertexCount);
@@ -123,70 +168,69 @@ Model* GenerateTerrain(TextureData *tex)
 	vec2 *texCoordArray = malloc(sizeof(vec2) * vertexCount);
 	GLuint *indexArray = malloc(sizeof(GLuint) * triangleCount * 3);
 
-	printf("bpp %d\n", tex->bpp);
-	for (x = 0; x < (int) tex->width; x++)
-		for (z = 0; z < (int) tex->height; z++)
+	for (x = 0; x < (int) TERRAIN_WIDTH; x++)
+		for (z = 0; z < (int) TERRAIN_DEPTH; z++)
 		{
 // Vertex array. You need to scale this properly
-			vertexArray[x + z * tex->width] = SetVector(
+			vertexArray[x + z * TERRAIN_WIDTH] = SetVector(
 					x * TILE_WIDTH_X,
-					hmValueAt(tex, x, z),
+					terrain_height_at(x, z),
 					z * TILE_WIDTH_Z);
 // Normal vectors. You need to calculate these.
-			normalArray[x + z * tex->width] = SetVector(0.0, 1.0, 0.0);
+			normalArray[x + z * TERRAIN_WIDTH] = SetVector(0.0, 1.0, 0.0);
 // Texture coordinates. You may want to scale them.
-			texCoordArray[x + z * tex->width].x = x; // (float)x / tex->width;
-			texCoordArray[x + z * tex->width].y = z; // (float)z / tex->height;
+			texCoordArray[x + z * TERRAIN_WIDTH].x = x; // (float)x / tex->width;
+			texCoordArray[x + z * TERRAIN_WIDTH].y = z; // (float)z / tex->height;
 		}
-	for (x = 0; x < (int) tex->width-1; x++)
-		for (z = 0; z < (int) tex->height-1; z++)
+	for (x = 0; x < (int) TERRAIN_WIDTH-1; x++)
+		for (z = 0; z < (int) TERRAIN_DEPTH-1; z++)
 		{
 		// Triangle 1
-			indexArray[(x + z * (tex->width-1))*6 + 0] = x + z * tex->width;
-			indexArray[(x + z * (tex->width-1))*6 + 1] = x + (z+1) * tex->width;
-			indexArray[(x + z * (tex->width-1))*6 + 2] = x+1 + z * tex->width;
+			indexArray[(x + z * (TERRAIN_WIDTH-1))*6 + 0] = x + z * TERRAIN_WIDTH;
+			indexArray[(x + z * (TERRAIN_WIDTH-1))*6 + 1] = x + (z+1) * TERRAIN_WIDTH;
+			indexArray[(x + z * (TERRAIN_WIDTH-1))*6 + 2] = x+1 + z * TERRAIN_WIDTH;
 		// Triangle 2
-			indexArray[(x + z * (tex->width-1))*6 + 3] = x+1 + z * tex->width;
-			indexArray[(x + z * (tex->width-1))*6 + 4] = x + (z+1) * tex->width;
-			indexArray[(x + z * (tex->width-1))*6 + 5] = x+1 + (z+1) * tex->width;
+			indexArray[(x + z * (TERRAIN_WIDTH-1))*6 + 3] = x+1 + z * TERRAIN_WIDTH;
+			indexArray[(x + z * (TERRAIN_WIDTH-1))*6 + 4] = x + (z+1) * TERRAIN_WIDTH;
+			indexArray[(x + z * (TERRAIN_WIDTH-1))*6 + 5] = x+1 + (z+1) * TERRAIN_WIDTH;
 		}
 
-	for (x = 0; x < (int) tex->width; x++)
-		for (z = 0; z < (int) tex->height; z++)
+	for (x = 0; x < (int) TERRAIN_WIDTH; x++)
+		for (z = 0; z < (int) TERRAIN_DEPTH; z++)
 		{
 			float totAng = 0.0;
 			vec3 normal = {0.0, 0.0, 0.0};
-			if (x+1 < (int) tex->width && z+1 < (int) tex->height) {
+			if (x+1 < (int) TERRAIN_WIDTH && z+1 < (int) TERRAIN_DEPTH) {
 				totAng += 90.0;
 				normal = VectorAdd(normal,
-					ScalarMult(normalForTriangle(vertexArray, tex->width,
+					ScalarMult(normalForTriangle(vertexArray, TERRAIN_WIDTH,
 						x, z, x+1, z, x, z+1), 90.0));
 			}
-			if (x-1 >= 0 && z+1 < (int) tex->height) {
+			if (x-1 >= 0 && z+1 < (int) TERRAIN_DEPTH) {
 				totAng += 45.0;
 				normal = VectorAdd(normal,
-					ScalarMult(normalForTriangle(vertexArray, tex->width,
+					ScalarMult(normalForTriangle(vertexArray, TERRAIN_WIDTH,
 						x, z, x, z+1, x-1, z+1), 45.0));
 				normal = VectorAdd(normal,
-					ScalarMult(normalForTriangle(vertexArray, tex->width,
+					ScalarMult(normalForTriangle(vertexArray, TERRAIN_WIDTH,
 						x, z, x-1, z+1, x-1, z), 45.0));
 			}
 			if (x-1 > 0 && z-1 > 0) {
 				totAng += 90.0;
 				normal = VectorAdd(normal,
-					ScalarMult(normalForTriangle(vertexArray, tex->width,
+					ScalarMult(normalForTriangle(vertexArray, TERRAIN_WIDTH,
 						x, z, x-1, z, x, z-1), 90.0));
 			}
-			if (x+1 < (int) tex->width && z-1 > 0) {
+			if (x+1 < (int) TERRAIN_WIDTH && z-1 > 0) {
 				totAng += 90.0;
 				normal = VectorAdd(normal,
-					ScalarMult(normalForTriangle(vertexArray, tex->width,
+					ScalarMult(normalForTriangle(vertexArray, TERRAIN_WIDTH,
 						x, z, x, z-1, x+1, z-1), 45.0));
 				normal = VectorAdd(normal,
-					ScalarMult(normalForTriangle(vertexArray, tex->width,
+					ScalarMult(normalForTriangle(vertexArray, TERRAIN_WIDTH,
 						x, z, x+1, z-1, x+1, z), 45.0));
 			}
-			normalArray[x + z * tex->width] = ScalarMult(normal, totAng);
+			normalArray[x + z * TERRAIN_WIDTH] = ScalarMult(normal, totAng);
 		}
 
 	// End of terrain generation
@@ -245,7 +289,7 @@ void init(void)
 
 	// Load terrain data
 	LoadTGATextureData("fft-terrain.tga", &ttex);
-	tm = GenerateTerrain(&ttex);
+	tm = GenerateTerrain();
 	printError("init terrain");
 
 	// Load models
@@ -326,7 +370,7 @@ void display(void)
 
 	x = 60.0 + 30.0 * cos(t / 3.0);
 	z = 60.0 + 30.0 * sin(t / 3.0);
-	y = hmHeightAt(&ttex, x, z);
+	y = terrain_height_at(x, z);
 	vec3 n = hmNormalAt(&ttex, x, z);
 	vec3 v = Normalize(VectorSub(SetVector(1.0, 0.0, 0.0), ScalarMult(n, n.x)));
 	vec3 u = Normalize(CrossProduct(n, v));
@@ -343,7 +387,7 @@ void display(void)
 
 	x = 60.0 + 50.0 * pow(cos(t / 4.0), 2);
 	z = 60.0 + 50.0 * pow(sin(t / 4.0), 1);
-	y = hmHeightAt(&ttex, x, z);
+	y = terrain_height_at(x, z);
 	n = hmNormalAt(&ttex, x, z);
 	v = Normalize(VectorSub(SetVector(1.0, 0.0, 0.0), ScalarMult(n, n.x)));
 	u = Normalize(CrossProduct(n, v));
@@ -389,7 +433,7 @@ void handleMovingControls(float delta) {
 		view_pos = VectorSub(view_pos, ScalarMult(proj_right, delta * MOVE_SPEED));
 	}
 	// Put eyes at correct height
-	float ground_y = hmHeightAt(&ttex, view_pos.x, view_pos.z) + 5.0f;
+	float ground_y = terrain_height_at(view_pos.x, view_pos.z) + 5.0f;
 	if (view_pos.y > ground_y) {
 		// Falling
 		fall_speed += FALL_ACCEL * delta;
@@ -422,7 +466,7 @@ void handleMovingControls(float delta) {
 
 void handleMouseLook(float delta, int dx, int dy) {
 	const int MIN_PIXELS = 5;
-	const float LOOK_SPEED = 150.0f;
+	const float LOOK_SPEED = 300.0f;
 	const vec3 forward_vector = Normalize(VectorSub(view_target, view_pos));
 	const vec3 right_vector = Normalize(CrossProduct(forward_vector, up_vector));
 	// Mouse look

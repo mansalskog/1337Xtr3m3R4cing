@@ -57,6 +57,7 @@ void main(void)
 	}
 	vec4 totalLight = vec4(ambientLight + diffuseLight + specularLight, 1.0);
 
+	/*
 	if (worldPos.y > 70.0 + 1.0 * sin(worldPos.x + worldPos.z)) {
 		outColor = texture(tex1, texCoord) * totalLight;
 	} else if (worldPos.y < 5.0 + 0.7 * sin(sin(time) * 0.5 * time + worldPos.x + worldPos.z)) {
@@ -65,12 +66,14 @@ void main(void)
 	} else {
 		outColor = texture(tex0, texCoord) * totalLight;
 	}
+	*/
+	outColor = texture(tex0, texCoord) * totalLight;
 
 	const float fogDistance = 100.0;
 	if (fogEnable && length(viewPos) > fogDistance) {
 		// Fade out over 50 units
 		float t = (length(viewPos) - fogDistance) / 50.0;
 		t = smoothstep(0.0, 1.0, t);
-		outColor = mix(outColor, vec4(1.0, 1.0, 1.0, 0.0), t);
+		// outColor = mix(outColor, vec4(1.0, 1.0, 1.0, 0.0), t);
 	}
 }
