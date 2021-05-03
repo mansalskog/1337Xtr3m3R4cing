@@ -249,39 +249,62 @@ Model* GenerateTerrain()
 	return model;
 }
 
-// vertex array object
-Model *m, *m2, *tm;
-// Reference to shader program
-GLuint program;
-GLuint maskros, concrete, dirt, grass;
-TextureData ttex; // terrain
-// Test models
-Model *sphere;
-Model *octagon;
-
-struct car {
-	float x, z;
+struct thing {
+	vec3 pos;
+	vec3 vel;
+	int gravity;
 	Model *model;
 	GLuint texture;
 };
 
-const int MAX_CARS = 100;
-int num_cars = 0;
-struct car cars[MAX_CARS];
+// Global variables //
 
-void drawCar(struct car *car) {
-	float y = terrain_height_at(car->x, car->z);
-	mat4 modelView = T(car->x, y, car->z);
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, car->texture);
-	DrawModel(car->model, program, "inPosition", "inNormal", "inTexCoord");
+#define MAX_THINGS 1000
+int num_things = 0;
+struct thing things[MAX_THINGS];
+Model *terrain;
+GLuint program;
+
+void drawEverything() {
+	for (int i = 0; i < num_things; i++) {
+		struct thing *t = &things[i];
+		mat4 mdlMatrix = T(t->pos.x, t->pos.y, t->pos.z);
+		glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, t->texture);
+		DrawModel(t->model, program, "inPosition", "inNormal", "inTexCoord");
+	}
 }
 
-void loadCar(const char *modelName, const char *textureName) {
-	struct car *car = &cars[num_cars++];
-	car->model = LoadModel(modelName);
-	LoadTGATextureSimple(textureName, &car->texture);
+#define GRAVITY_ACCEL 50
+
+void updateEverything(float delta_t) {
+	for (int i = 0; i < num_things; i++) {
+		struct thing *t = &things[i];
+		// Do gravity
+		if (t->gravity) {
+			float ground_y = terrain_height_at(t->pos.x, t->pos.z) + 10.0f;
+			if (t->pos.y > ground_y) {
+				// Falling
+				t->vel.y -= GRAVITY_ACCEL * delta_t;
+			} else {
+				// Standing
+				t->pos.y = ground_y;
+				t->vel.y = 0.0f;
+			}
+		}
+		// Do physics
+		t->pos = VectorAdd(t->pos, ScalarMult(t->vel, delta_t));
+	}
+}
+
+void createThing(const Model *model, const GLuint texture, float x, float y, float z, int gravity) {
+	struct thing *t = &things[num_things++];
+	t->model = model;
+	t->texture = texture;
+	t->pos = SetVector(x, y, z);
+	t->vel = SetVector(0, 0, 0);
+	t->gravity = gravity;
 }
 
 void init(void)
@@ -303,26 +326,37 @@ void init(void)
 	glUseProgram(program);
 	printError("init shader");
 
+	// Other setup
 	glUniformMatrix4fv(glGetUniformLocation(program, "projMatrix"), 1, GL_TRUE, projectionMatrix.m);
 	glUniform1i(glGetUniformLocation(program, "tex0"), 0); // Texture unit 0
 	glUniform1i(glGetUniformLocation(program, "tex1"), 1); // Texture unit 1
 	glUniform1i(glGetUniformLocation(program, "tex2"), 2); // Texture unit 2
-	LoadTGATextureSimple("maskros512.tga", &maskros);
-	LoadTGATextureSimple("conc.tga", &concrete);
-	LoadTGATextureSimple("dirt.tga", &dirt);
-	LoadTGATextureSimple("grass.tga", &grass);
 
-	// Load terrain data
-	LoadTGATextureData("fft-terrain.tga", &ttex);
-	tm = GenerateTerrain();
+	// Load textures
+	GLuint maskros, concrete, dirt, grass;
+	LoadTGATextureSimple("res/maskros512.tga", &maskros);
+	LoadTGATextureSimple("res/conc.tga", &concrete);
+	LoadTGATextureSimple("res/dirt.tga", &dirt);
+	LoadTGATextureSimple("res/grass.tga", &grass);
+
+	// Generate terrain data
+	// LoadTGATextureData("fft-terrain.tga", &ttex);
+	terrain = GenerateTerrain();
 	printError("init terrain");
 
 	// Load models
-	sphere = LoadModel("groundsphere.obj");
-	octagon = LoadModel("octagon.obj");
+	Model *sphere = LoadModel("res/groundsphere.obj");
+	Model *octagon = LoadModel("res/octagon.obj");
+	Model *car = LoadModel("res/SPECTER_GT3_.obj");
 
-	// Load cars
-	loadCar("SPECTER_GT3_.obj", "grass.tga");
+	createThing(terrain, grass, 0, 0, 0, 0);
+	createThing(car, concrete, 0, 0, 0, 1);
+	createThing(sphere, maskros, 50, 50, 50, 1);
+	createThing(sphere, maskros, 150, 50, 50, 1);
+	createThing(sphere, maskros, 50, 50, 150, 1);
+	createThing(sphere, maskros, 80, 50, 50, 1);
+	createThing(sphere, maskros, 80, 50, 80, 1);
+	createThing(sphere, maskros, 50, 80, 50, 1);
 
 	// Setup light sources
 	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), lightCount, lightSourcesDirPosArr);
@@ -356,6 +390,7 @@ void display(void)
 
 	glUniform1i(glGetUniformLocation(program, "fogEnable"), fogEnable);
 
+	/*
 	// Draw the ground
 	modelView = IdentityMatrix();
 	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
@@ -365,8 +400,10 @@ void display(void)
 	glBindTexture(GL_TEXTURE_2D, dirt);
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, concrete);
-	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
+	DrawModel(terrain, program, "inPosition", "inNormal", "inTexCoord");
+	*/
 
+	/*
 	// Draw eight copies of the ground in every direction
 	const float w = TILE_WIDTH_X * ttex.width;
 	const float h = TILE_WIDTH_Z * ttex.height;
@@ -394,7 +431,10 @@ void display(void)
 	modelView = T(w, 0.0, -h);
 	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
 	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
+	*/
 
+	/*
+	 // Draw octagon and ball
 	x = 60.0 + 30.0 * cos(t / 3.0);
 	z = 60.0 + 30.0 * sin(t / 3.0);
 	y = terrain_height_at(x, z);
@@ -428,8 +468,10 @@ void display(void)
 	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
 	glBindTexture(GL_TEXTURE_2D, maskros);
 	DrawModel(octagon, program, "inPosition", "inNormal", "inTexCoord");
+	*/
 
-	printError("display 2");
+	drawEverything();
+	printError("drawEverything");
 
 	glutSwapBuffers();
 }
@@ -437,6 +479,7 @@ void display(void)
 float fall_speed = 0.0f;
 
 void handleMovingControls(float delta) {
+	updateEverything(delta);
 	const float MOVE_SPEED = 50.0f;
 	const float LOOK_SPEED = 200.0f;
 	const float FALL_ACCEL = 50.0f;
@@ -489,6 +532,8 @@ void handleMovingControls(float delta) {
 	if (glutKeyIsDown(GLUT_KEY_DOWN)) {
 		view_target = VectorSub(view_target, ScalarMult(up_vector, delta * LOOK_SPEED));
 	}
+
+	printf("%f %f %f\n", view_pos.x, view_pos.y, view_pos.z);
 }
 
 void handleMouseLook(float delta, int dx, int dy) {
@@ -551,7 +596,7 @@ int main(int argc, char **argv)
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_DEPTH);
 	glutInitContextVersion(3, 2);
 	glutInitWindowSize(WIN_WIDTH, WIN_HEIGHT);
-	glutCreateWindow("TSBK07 Lab 4");
+	glutCreateWindow("1337 Xtr3m3 R4c1ng");
 	glutDisplayFunc(display);
 	glutKeyboardFunc(keyboard);
 	init();
