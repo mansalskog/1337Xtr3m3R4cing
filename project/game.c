@@ -51,14 +51,17 @@ float smoothstep(float x0, float x1, float t) {
 	return x0 + (x1 - x0) * (3.0f - t * 2.0f) * t * t;
 }
 
-vec2 random_unit2() {
-	vec2 v;
-	v.x = 2.0f * (rand() / (float) RAND_MAX) - 1.0f;
-	v.y = 2.0f * (rand() / (float) RAND_MAX) - 1.0f;
-	float l = sqrt(v.x * v.x + v.y * v.y);
-	v.x /= l;
-	v.y /= l;
-	return v;
+// Random number between -1 and 1
+float random_unit() {
+	return 2.0f * (rand() / (float) RAND_MAX) - 1.0f;
+}
+
+float norm2(float x, float y) {
+	return sqrt(x * x + y * y);
+}
+
+vec3 angle_y_vec(float angle_y) {
+	return SetVector(cos(angle_y), 0.0f, sin(angle_y));
 }
 
 ///// Terrain (heightmap) /////
@@ -223,13 +226,30 @@ Model* terrain_generate_model()
 	return model;
 }
 
+// Constants
+
 #define THING_TERRAIN 0
 #define THING_ENEMY 1
 #define THING_PLAYER 2
 
+#define GRAVITY_ACCEL 50
+
+#define CAR_ACCEL 200
+#define CAR_MAX_SPEED 40
+#define CAR_TURN_SPEED 0.8f
+#define CAR_AIR_DRAG 0.02f
+
+#define CAMERA_BEHIND_FAR 0
+#define CAMERA_BEHIND_CLOSE 1
+#define CAMERA_IN_CAR 2
+#define CAMERA_MODE_LAST 2
+
+#define MAX_THINGS 1000
+
 struct thing {
 	vec3 pos;
 	vec3 vel;
+	float angle_y;
 	int type;
 	Model *model;
 	GLuint texture;
@@ -237,16 +257,19 @@ struct thing {
 
 // Global variables //
 
-#define MAX_THINGS 1000
 int num_things = 0;
 struct thing things[MAX_THINGS];
+struct thing *player;
+int camera_mode = CAMERA_BEHIND_FAR;
 Model *terrain;
 GLuint program;
 
 void drawEverything() {
 	for (int i = 0; i < num_things; i++) {
 		struct thing *t = &things[i];
-		mat4 mdlMatrix = T(t->pos.x, t->pos.y, t->pos.z);
+		mat4 mdlMatrix = Mult(
+				T(t->pos.x, t->pos.y, t->pos.z),
+				Ry(-t->angle_y));
 		glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, t->texture);
@@ -254,15 +277,12 @@ void drawEverything() {
 	}
 }
 
-#define GRAVITY_ACCEL 50
-#define ENEMY_SPEED 3
-
 void updateEverything(float delta_t) {
 	for (int i = 0; i < num_things; i++) {
 		struct thing *t = &things[i];
 		// Do gravity
 		if (t->type != THING_TERRAIN) {
-			float ground_y = terrain_height_at(t->pos.x, t->pos.z) + 1.0f;
+			float ground_y = terrain_height_at(t->pos.x, t->pos.z);
 			if (t->pos.y > ground_y) {
 				// Falling
 				t->vel.y -= GRAVITY_ACCEL * delta_t;
@@ -272,23 +292,81 @@ void updateEverything(float delta_t) {
 				t->vel.y = 0.0f;
 			}
 		}
+		// Update enemies
 		if (t->type == THING_ENEMY) {
-			vec2 dir = random_unit2();
-			t->vel.x += ENEMY_SPEED * dir.x;
-			t->vel.z += ENEMY_SPEED * dir.y;
+			// Turn in a random direction
+			t->angle_y += delta_t * CAR_TURN_SPEED * random_unit();
+			t->vel = VectorAdd(t->vel, ScalarMult(angle_y_vec(t->angle_y), delta_t * CAR_ACCEL));
+			// Limit speed to maxmimum
+			float speed = norm2(t->vel.x, t->vel.z);
+			if (speed > CAR_MAX_SPEED) {
+				t->vel.x *= CAR_MAX_SPEED / speed;
+				t->vel.z *= CAR_MAX_SPEED / speed;
+			}
+		}
+		// Update the player
+		if (t->type == THING_PLAYER) {
+			int forward = glutKeyIsDown('w') || glutKeyIsDown(GLUT_KEY_UP);
+			int left = glutKeyIsDown('a') || glutKeyIsDown(GLUT_KEY_LEFT);
+			int right = glutKeyIsDown('d') || glutKeyIsDown(GLUT_KEY_RIGHT);
+			// Accelerating
+			if (forward) {
+				player->vel = VectorAdd(player->vel, ScalarMult(angle_y_vec(player->angle_y), delta_t * CAR_ACCEL));
+			}
+			// Limit speed to maximum
+			float speed = norm2(player->vel.x, player->vel.z);
+			if (speed > CAR_MAX_SPEED) {
+				player->vel.x *= CAR_MAX_SPEED / speed;
+				player->vel.z *= CAR_MAX_SPEED / speed;
+			}
+			// Turning left and right
+			if (left && speed > 0.0f) {
+				player->angle_y += delta_t * CAR_TURN_SPEED;
+			}
+			if (right && speed > 0.0f) {
+				player->angle_y -= delta_t * CAR_TURN_SPEED;
+			}
+			// Do friction and air drag
+			player->vel = VectorAdd(player->vel, ScalarMult(player->vel, -CAR_AIR_DRAG));
 		}
 		// Do physics
 		t->pos = VectorAdd(t->pos, ScalarMult(t->vel, delta_t));
 	}
 }
 
-void createThing(const Model *model, const GLuint texture, float x, float y, float z, int type) {
+struct thing *createThing(const Model *model, const GLuint texture, float x, float y, float z, int type) {
 	struct thing *t = &things[num_things++];
 	t->model = model;
 	t->texture = texture;
 	t->pos = SetVector(x, y, z);
 	t->vel = SetVector(0, 0, 0);
 	t->type = type;
+	return t;
+}
+
+void setCameraMatrix() {
+	vec3 view_pos, view_target;
+	if (camera_mode == CAMERA_BEHIND_FAR) {
+		view_pos = VectorAdd(player->pos, VectorAdd(
+				ScalarMult(angle_y_vec(player->angle_y), -50.0f),
+				SetVector(0, 20, 0)));
+		view_target = player->pos;
+	} else if (camera_mode == CAMERA_BEHIND_CLOSE) {
+		view_pos = VectorAdd(player->pos, VectorAdd(
+				ScalarMult(angle_y_vec(player->angle_y), -20.0f),
+				SetVector(0, 10, 0)));
+		view_target = player->pos;
+	} else if (camera_mode == CAMERA_IN_CAR) {
+		view_pos = VectorAdd(player->pos, SetVector(0, 10, 0));
+		view_target = VectorAdd(view_pos,
+				ScalarMult(angle_y_vec(player->angle_y), 50.0f));
+	} else {
+		fprintf(stderr, "Invalid camera mode %d!\n", camera_mode);
+		exit(EXIT_FAILURE);
+	}
+	const vec3 up_vector = {0, 1, 0};
+	mat4 cameraMatrix = lookAtv(view_pos, view_target, up_vector);
+	glUniformMatrix4fv(glGetUniformLocation(program, "camMatrix"), 1, GL_TRUE, cameraMatrix.m);
 }
 
 void init(void)
@@ -334,12 +412,13 @@ void init(void)
 
 	createThing(terrain, grass, 0, 0, 0, 0);
 	createThing(car, concrete, 0, 0, 0, 1);
-	createThing(sphere, maskros, 50, 50, 50, THING_ENEMY);
-	createThing(sphere, maskros, 60, 50, 50, THING_ENEMY);
-	createThing(sphere, maskros, 50, 50, 90, THING_ENEMY);
-	createThing(sphere, maskros, 80, 50, 50, THING_ENEMY);
-	createThing(sphere, maskros, 80, 50, 80, THING_ENEMY);
-	createThing(sphere, maskros, 50, 80, 50, THING_ENEMY);
+	createThing(octagon, maskros, 50, 50, 50, THING_ENEMY);
+	createThing(octagon, maskros, 60, 50, 50, THING_ENEMY);
+	createThing(octagon, maskros, 50, 50, 90, THING_ENEMY);
+	createThing(octagon, maskros, 80, 50, 50, THING_ENEMY);
+	createThing(octagon, maskros, 80, 50, 80, THING_ENEMY);
+	createThing(octagon, maskros, 50, 80, 50, THING_ENEMY);
+	player = createThing(octagon, grass, 0, 0, 0, THING_PLAYER);
 
 	// Setup light sources
 	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), lightCount, lightSourcesDirPosArr);
@@ -347,9 +426,6 @@ void init(void)
 	glUniform1iv(glGetUniformLocation(program, "isDirectional"), lightCount, isDirectional);
 }
 
-const vec3 up_vector = {0.0, 1.0, 0.0};
-vec3 view_target = {2, 0, 2};
-vec3 view_pos = {80, 5, 108};
 int fogEnable = 1;
 
 void display(void)
@@ -364,9 +440,7 @@ void display(void)
 
 	glUseProgram(program);
 
-	// Set view matrix
-	camMatrix = lookAtv(view_pos, view_target, up_vector);
-	glUniformMatrix4fv(glGetUniformLocation(program, "camMatrix"), 1, GL_TRUE, camMatrix.m);
+	setCameraMatrix();
 
 	GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
 	glUniform1f(glGetUniformLocation(program, "time"), t);
@@ -379,86 +453,6 @@ void display(void)
 	glutSwapBuffers();
 }
 
-float fall_speed = 0.0f;
-
-void handleMovingControls(float delta) {
-	updateEverything(delta);
-	const float MOVE_SPEED = 50.0f;
-	const float LOOK_SPEED = 200.0f;
-	const float FALL_ACCEL = 50.0f;
-	const float JUMP_SPEED = 50.0f;
-	const vec3 forward = Normalize(VectorSub(view_target, view_pos));
-	const vec3 proj_forward = Normalize(SetVector(forward.x, 0, forward.z));
-	const vec3 right = CrossProduct(proj_forward, up_vector);
-	const vec3 proj_right = Normalize(SetVector(right.x, 0, right.z));
-	// Forward and backward
-	if (glutKeyIsDown('w')) {
-		view_pos = VectorAdd(view_pos, ScalarMult(proj_forward, delta * MOVE_SPEED));
-	}
-	if (glutKeyIsDown('s')) {
-		view_pos = VectorSub(view_pos, ScalarMult(proj_forward, delta * MOVE_SPEED));
-	}
-	// Strafing left and right
-	if (glutKeyIsDown('d')) {
-		view_pos = VectorAdd(view_pos, ScalarMult(proj_right, delta * MOVE_SPEED));
-	}
-	if (glutKeyIsDown('a')) {
-		view_pos = VectorSub(view_pos, ScalarMult(proj_right, delta * MOVE_SPEED));
-	}
-	// Put eyes at correct height
-	float ground_y = terrain_height_at(view_pos.x, view_pos.z) + 5.0f;
-	if (view_pos.y > ground_y) {
-		// Falling
-		fall_speed += FALL_ACCEL * delta;
-		view_pos.y -= fall_speed * delta;
-	} else if (glutKeyIsDown(' ')) {
-		// Jumping
-		fall_speed = -JUMP_SPEED;
-		view_pos.y -= fall_speed * delta;
-	} else {
-		// Standing
-		view_pos.y = ground_y;
-		fall_speed = 0.0f;
-	}
-	// Put view target 100 units in front of view pos
-	view_target = VectorAdd(view_pos, ScalarMult(forward, 100.0f));
-	// Turning
-	if (glutKeyIsDown(GLUT_KEY_RIGHT)) {
-		view_target = VectorAdd(view_target, ScalarMult(proj_right, delta * LOOK_SPEED));
-	}
-	if (glutKeyIsDown(GLUT_KEY_LEFT)) {
-		view_target = VectorSub(view_target, ScalarMult(proj_right, delta * LOOK_SPEED));
-	}
-	if (glutKeyIsDown(GLUT_KEY_UP)) {
-		view_target = VectorAdd(view_target, ScalarMult(up_vector, delta * LOOK_SPEED));
-	}
-	if (glutKeyIsDown(GLUT_KEY_DOWN)) {
-		view_target = VectorSub(view_target, ScalarMult(up_vector, delta * LOOK_SPEED));
-	}
-
-	printf("%f %f %f\n", view_pos.x, view_pos.y, view_pos.z);
-}
-
-void handleMouseLook(float delta, int dx, int dy) {
-	const int MIN_PIXELS = 5;
-	const float LOOK_SPEED = 300.0f;
-	const vec3 forward_vector = Normalize(VectorSub(view_target, view_pos));
-	const vec3 right_vector = Normalize(CrossProduct(forward_vector, up_vector));
-	// Mouse look
-	if (dx > MIN_PIXELS) {
-		view_target = VectorAdd(view_target, ScalarMult(right_vector, delta * LOOK_SPEED));
-	}
-	if (dx < -MIN_PIXELS) {
-		view_target = VectorSub(view_target, ScalarMult(right_vector, delta * LOOK_SPEED));
-	}
-	if (dy < -MIN_PIXELS) {
-		view_target = VectorAdd(view_target, ScalarMult(up_vector, delta * LOOK_SPEED));
-	}
-	if (dy > MIN_PIXELS) {
-		view_target = VectorSub(view_target, ScalarMult(up_vector, delta * LOOK_SPEED));
-	}
-}
-
 GLfloat prev_t = 0.0;
 int paused = 0;
 
@@ -466,30 +460,22 @@ void timer(int i)
 {
 	glutTimerFunc(20, &timer, i);
     GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	handleMovingControls(t - prev_t);
+	updateEverything(t - prev_t);
 	prev_t = t;
 	glutPostRedisplay();
 }
 
 void mouse(int x, int y)
 {
-	if (!paused) {
-		GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-		handleMouseLook(t - prev_t, x - WIN_WIDTH / 2, y - WIN_HEIGHT / 2);
-		glutWarpPointer(WIN_WIDTH / 2, WIN_HEIGHT / 2);
-	}
 }
 
 void keyboard(unsigned char key, int x, int y) {
 	if (key == GLUT_KEY_ESC) {
-		paused = !paused;
-		if (paused) {
-			glutShowCursor();
-		} else {
-			glutHideCursor();
-		}
+		// Handle pause menu
 	} else if (key == 'f') {
 		fogEnable = !fogEnable;
+	} else if (key == 'c') {
+		camera_mode = (camera_mode + 1) % (CAMERA_MODE_LAST + 1);
 	}
 }
 
@@ -505,7 +491,7 @@ int main(int argc, char **argv)
 	init();
 	glutTimerFunc(20, &timer, 0);
 
-	glutHideCursor();
+	// glutHideCursor();
 	glutPassiveMotionFunc(mouse);
 
 	glutMainLoop();
