@@ -108,6 +108,15 @@ float terrain_height_at(float x, float z) {
 	return TERRAIN_HEIGHT_FACTOR * smoothstep(smoothstep(d00, d10, dx), smoothstep(d01, d11, dx), dz);
 }
 
+vec3 terrain_normal_at(float x, float z) {
+	const float delta = 0.001;
+	float h = terrain_height_at(x, z);
+	return Normalize(CrossProduct(
+			SetVector(0, terrain_height_at(x, z + delta) - h, delta),
+			SetVector(delta, terrain_height_at(x + delta, z) - h, 0)
+			));
+}
+
 /*
 // Unused?
 vec3 terrain_normal_at(float x, float z) {
@@ -267,9 +276,25 @@ GLuint program;
 void drawEverything() {
 	for (int i = 0; i < num_things; i++) {
 		struct thing *t = &things[i];
-		mat4 mdlMatrix = Mult(
-                T(t->pos.x, t->pos.y, t->pos.z),
-                Ry(-t->angle_y));
+		mat4 mdlMatrix;
+		if (t->type == THING_TERRAIN) {
+			mdlMatrix = Mult(
+					T(t->pos.x, t->pos.y, t->pos.z),
+					Ry(-t->angle_y));
+		} else if (t->type != THING_TERRAIN) {
+			vec3 n = terrain_normal_at(t->pos.x, t->pos.z);
+			vec3 v = Normalize(VectorSub(SetVector(1.0, 0.0, 0.0), ScalarMult(n, n.x)));
+			vec3 u = Normalize(CrossProduct(n, v));
+			mat4 tiltMatrix = {{
+				v.x, n.x, u.x, 0.0,
+				v.y, n.y, u.y, 0.0,
+				v.z, n.z, u.z, 0.0,
+				0.0, 0.0, 0.0, 1.0,
+			}};
+			mat4 baseMdlMatrix = Ry(M_PI / 2.0f);
+			mdlMatrix = Mult(Mult(T(t->pos.x, t->pos.y, t->pos.z), Ry(-t->angle_y)),
+					Mult(tiltMatrix, baseMdlMatrix));
+		}
 		glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, t->texture);
@@ -338,7 +363,7 @@ void updateEverything(float delta_t) {
 	}
 }
 
-struct thing *createThing(const Model *model, const GLuint texture, float x, float y, float z, int type) {
+struct thing *createThing(Model *model, GLuint texture, float x, float y, float z, int type) {
 	struct thing *t = &things[num_things++];
 	t->model = model;
 	t->texture = texture;
@@ -352,13 +377,13 @@ void setCameraMatrix() {
 	vec3 view_pos, view_target;
 	if (camera_mode == CAMERA_BEHIND_FAR) {
 		view_pos = VectorAdd(player->pos, VectorAdd(
-				ScalarMult(angle_y_vec(player->angle_y), -50.0f),
-				SetVector(0, 20, 0)));
+				ScalarMult(angle_y_vec(player->angle_y), -30.0f),
+				SetVector(0, 10, 0)));
 		view_target = player->pos;
 	} else if (camera_mode == CAMERA_BEHIND_CLOSE) {
 		view_pos = VectorAdd(player->pos, VectorAdd(
-				ScalarMult(angle_y_vec(player->angle_y), -20.0f),
-				SetVector(0, 10, 0)));
+				ScalarMult(angle_y_vec(player->angle_y), -15.0f),
+				SetVector(0, 5, 0)));
 		view_target = player->pos;
 	} else if (camera_mode == CAMERA_IN_CAR) {
 		view_pos = VectorAdd(player->pos, SetVector(0, 10, 0));
@@ -378,7 +403,7 @@ void init(void)
 	// GL inits
 	glClearColor(0.2,0.2,0.5,0);
 	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
+	glDisable(GL_CULL_FACE);
 	printError("GL inits");
 
 	// Enable transparency
@@ -422,7 +447,7 @@ void init(void)
 	createThing(octagon, maskros, 80, 50, 50, THING_ENEMY);
 	createThing(octagon, maskros, 80, 50, 80, THING_ENEMY);
 	createThing(car, maskros, 50, 80, 50, THING_ENEMY);
-	player = createThing(car, grass, 0, 0, 0, THING_PLAYER);
+	player = createThing(car, concrete, 0, 0, 0, THING_PLAYER);
 
 	// Setup light sources
 	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), lightCount, lightSourcesDirPosArr);
