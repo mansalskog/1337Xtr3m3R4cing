@@ -29,6 +29,8 @@ int isDirectional[] = {1, 0};
 
 mat4 projectionMatrix;
 
+///// Utility functions /////
+
 vec3 normalForTriangle(
 		const vec3 *vertexArray,
 		int width,
@@ -40,8 +42,6 @@ vec3 normalForTriangle(
 	vec3 c = vertexArray[x2 + z2 * width];
 	return Normalize(CrossProduct(VectorSub(b, a), VectorSub(c, a)));
 }
-
-///// Utility functions /////
 
 float interpolate(float x0, float x1, float t) {
 	return x0 + (x1 - x0) * t;
@@ -93,7 +93,7 @@ float terrain_height_at(float x, float z) {
 }
 
 /*
- 
+
 float hmValueAt(const TextureData *tex, int x0, int z0) {
 	return tex->imageData[(x0 + z0 * tex->width) * (tex->bpp/8)] * TILE_HEIGHT_Y;
 }
@@ -132,7 +132,7 @@ float hmHeightAt(const TextureData *tex, float x, float z) {
 
 */
 
-vec3 hmNormalAt(const TextureData *tex, float x, float z) {
+vec3 hmNormalAt(float x, float z) {
 	int x0 = (int) floor(x / TILE_WIDTH_X);
 	int z0 = (int) floor(z / TILE_WIDTH_Z);
 	float dx = x / TILE_WIDTH_X - (float) x0;
@@ -259,6 +259,31 @@ TextureData ttex; // terrain
 Model *sphere;
 Model *octagon;
 
+struct car {
+	float x, z;
+	Model *model;
+	GLuint texture;
+};
+
+const int MAX_CARS = 100;
+int num_cars = 0;
+struct car cars[MAX_CARS];
+
+void drawCar(struct car *car) {
+	float y = terrain_height_at(car->x, car->z);
+	mat4 modelView = T(car->x, y, car->z);
+	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, car->texture);
+	DrawModel(car->model, program, "inPosition", "inNormal", "inTexCoord");
+}
+
+void loadCar(const char *modelName, const char *textureName) {
+	struct car *car = &cars[num_cars++];
+	car->model = LoadModel(modelName);
+	LoadTGATextureSimple(textureName, &car->texture);
+}
+
 void init(void)
 {
 	// GL inits
@@ -296,11 +321,13 @@ void init(void)
 	sphere = LoadModel("groundsphere.obj");
 	octagon = LoadModel("octagon.obj");
 
+	// Load cars
+	loadCar("SPECTER_GT3_.obj", "grass.tga");
+
 	// Setup light sources
 	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), lightCount, lightSourcesDirPosArr);
 	glUniform3fv(glGetUniformLocation(program, "lightSourcesColorArr"), lightCount, lightSourcesColorArr);
 	glUniform1iv(glGetUniformLocation(program, "isDirectional"), lightCount, isDirectional);
-
 }
 
 const vec3 up_vector = {0.0, 1.0, 0.0};
@@ -371,7 +398,7 @@ void display(void)
 	x = 60.0 + 30.0 * cos(t / 3.0);
 	z = 60.0 + 30.0 * sin(t / 3.0);
 	y = terrain_height_at(x, z);
-	vec3 n = hmNormalAt(&ttex, x, z);
+	vec3 n = hmNormalAt(x, z);
 	vec3 v = Normalize(VectorSub(SetVector(1.0, 0.0, 0.0), ScalarMult(n, n.x)));
 	vec3 u = Normalize(CrossProduct(n, v));
 	mat4 tiltMatrix1 = {{
@@ -388,7 +415,7 @@ void display(void)
 	x = 60.0 + 50.0 * pow(cos(t / 4.0), 2);
 	z = 60.0 + 50.0 * pow(sin(t / 4.0), 1);
 	y = terrain_height_at(x, z);
-	n = hmNormalAt(&ttex, x, z);
+	n = hmNormalAt(x, z);
 	v = Normalize(VectorSub(SetVector(1.0, 0.0, 0.0), ScalarMult(n, n.x)));
 	u = Normalize(CrossProduct(n, v));
 	mat4 tiltMatrix2 = {{
