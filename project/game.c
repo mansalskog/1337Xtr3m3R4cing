@@ -63,14 +63,17 @@ vec2 random_unit2() {
 
 ///// Terrain (heightmap) /////
 
-const float TERRAIN_WIDTH_FACTOR = 15.0f;
-const float TERRAIN_DEPTH_FACTOR = 15.0f;
-const float TERRAIN_HEIGHT_FACTOR = 10.0f;
-const int TERRAIN_WIDTH = 100;
-const int TERRAIN_DEPTH = 100;
+const float TERRAIN_WIDTH_FACTOR = 50.0f;
+const float TERRAIN_DEPTH_FACTOR = 50.0f;
+const float TERRAIN_HEIGHT_FACTOR = 15.0f;
+const int TERRAIN_WIDTH = 500;
+const int TERRAIN_DEPTH = 500;
+const float TERRAIN_TRIANGLE_SIZE = 2.0f;
 
 vec2 terrain_gradient(int x0, int z0) {
-	float angle = 2920.f * sin(x0 * 21942.f + z0 * 171324.f + 8912.f) * cos(x0 * 23157.f * z0 * 217832.f + 9758.f);
+	// float angle = 2920.f * sin(x0 * 21942.f + z0 * 171324.f + 8912.f) * cos(x0 * 23157.f * z0 * 217832.f + 9758.f);
+	srand(1337420 * x0 + 999999 * z0);
+	float angle = 2.0f * M_PI * (rand() / (float) RAND_MAX);
 	vec2 g = {cos(angle), sin(angle)};
 	return g;
 }
@@ -89,8 +92,8 @@ float terrain_height_at(float x, float z) {
 	x /= TERRAIN_WIDTH_FACTOR;
 	z /= TERRAIN_DEPTH_FACTOR;
 
-	int x0 = (int) x;
-	int z0 = (int) z;
+	int x0 = (int) floor(x);
+	int z0 = (int) floor(z);
 	float dx = x - x0;
 	float dz = z - z0;
 
@@ -102,6 +105,7 @@ float terrain_height_at(float x, float z) {
 	return TERRAIN_HEIGHT_FACTOR * smoothstep(smoothstep(d00, d10, dx), smoothstep(d01, d11, dx), dz);
 }
 
+/*
 // Unused?
 vec3 terrain_normal_at(float x, float z) {
 	int x0 = (int) floor(x / TILE_WIDTH_X);
@@ -127,6 +131,7 @@ vec3 terrain_normal_at(float x, float z) {
 	}
 	return normal;
 }
+*/
 
 Model* terrain_generate_model()
 {
@@ -142,10 +147,12 @@ Model* terrain_generate_model()
 	for (x = 0; x < (int) TERRAIN_WIDTH; x++) {
 		for (z = 0; z < (int) TERRAIN_DEPTH; z++)
 		{
+			float real_x = (x - TERRAIN_WIDTH / 2) * TERRAIN_TRIANGLE_SIZE;
+			float real_z = (z - TERRAIN_DEPTH / 2) * TERRAIN_TRIANGLE_SIZE;
 			vertexArray[x + z * TERRAIN_WIDTH] = SetVector(
-					x * TILE_WIDTH_X,
-					terrain_height_at(x, z),
-					z * TILE_WIDTH_Z);
+					real_x,
+					terrain_height_at(real_x, real_z),
+					real_z);
 			normalArray[x + z * TERRAIN_WIDTH] = SetVector(0.0, 1.0, 0.0);
 			texCoordArray[x + z * TERRAIN_WIDTH].x = x; // (float)x / tex->width;
 			texCoordArray[x + z * TERRAIN_WIDTH].y = z; // (float)z / tex->height;
