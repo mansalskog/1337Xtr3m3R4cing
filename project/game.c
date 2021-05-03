@@ -51,6 +51,16 @@ float smoothstep(float x0, float x1, float t) {
 	return x0 + (x1 - x0) * (3.0f - t * 2.0f) * t * t;
 }
 
+vec2 random_unit2() {
+	vec2 v;
+	v.x = 2.0f * (rand() / (float) RAND_MAX) - 1.0f;
+	v.y = 2.0f * (rand() / (float) RAND_MAX) - 1.0f;
+	float l = sqrt(v.x * v.x + v.y * v.y);
+	v.x /= l;
+	v.y /= l;
+	return v;
+}
+
 ///// Terrain (heightmap) /////
 
 const float TERRAIN_WIDTH_FACTOR = 15.0f;
@@ -92,47 +102,8 @@ float terrain_height_at(float x, float z) {
 	return TERRAIN_HEIGHT_FACTOR * smoothstep(smoothstep(d00, d10, dx), smoothstep(d01, d11, dx), dz);
 }
 
-/*
-
-float hmValueAt(const TextureData *tex, int x0, int z0) {
-	return tex->imageData[(x0 + z0 * tex->width) * (tex->bpp/8)] * TILE_HEIGHT_Y;
-}
-
-float hmHeightAt(const TextureData *tex, float x, float z) {
-	// Loop heightmap modulo width
-	const float w = TILE_WIDTH_X * tex->width;
-	const float h = TILE_WIDTH_Z * tex->height;
-	x = fmod(fmod(x, w) + w, w);
-	z = fmod(fmod(z, h) + h, h);
-	int x0 = (int) floor(x / TILE_WIDTH_X);
-	int z0 = (int) floor(z / TILE_WIDTH_Z);
-	float dx = x / TILE_WIDTH_X - (float) x0;
-	float dz = z / TILE_WIDTH_Z - (float) z0;
-
-	float h00 = hmValueAt(tex, x0, z0);
-	float h01 = hmValueAt(tex, x0, z0+1);
-	float h10 = hmValueAt(tex, x0+1, z0);
-	float h11 = hmValueAt(tex, x0+1, z0+1);
-
-	vec3 v00 = SetVector(x0 * TILE_WIDTH_X, h00, z0 * TILE_WIDTH_Z);
-	vec3 v01 = SetVector(x0 * TILE_WIDTH_X, h01, (z0+1) * TILE_WIDTH_Z);
-	vec3 v10 = SetVector((x0+1) * TILE_WIDTH_X, h10, z0 * TILE_WIDTH_Z);
-	vec3 v11 = SetVector((x0+1) * TILE_WIDTH_X, h11, (z0+1) * TILE_WIDTH_Z);
-
-	if (dx + dz < 1.0) {
-		vec3 normal = Normalize(CrossProduct(VectorSub(v01, v00), VectorSub(v10, v00)));
-		float y = (DotProduct(normal, v00) - normal.x * x - normal.z * z) / normal.y;
-		return y;
-	} else {
-		vec3 normal = Normalize(CrossProduct(VectorSub(v01, v10), VectorSub(v11, v10)));
-		float y = (DotProduct(normal, v11) - normal.x * x - normal.z * z) / normal.y;
-		return y;
-	}
-}
-
-*/
-
-vec3 hmNormalAt(float x, float z) {
+// Unused?
+vec3 terrain_normal_at(float x, float z) {
 	int x0 = (int) floor(x / TILE_WIDTH_X);
 	int z0 = (int) floor(z / TILE_WIDTH_Z);
 	float dx = x / TILE_WIDTH_X - (float) x0;
@@ -157,7 +128,7 @@ vec3 hmNormalAt(float x, float z) {
 	return normal;
 }
 
-Model* GenerateTerrain()
+Model* terrain_generate_model()
 {
 	int vertexCount = TERRAIN_WIDTH * TERRAIN_DEPTH;
 	int triangleCount = (TERRAIN_WIDTH-1) * (TERRAIN_DEPTH-1) * 2;
@@ -168,34 +139,33 @@ Model* GenerateTerrain()
 	vec2 *texCoordArray = malloc(sizeof(vec2) * vertexCount);
 	GLuint *indexArray = malloc(sizeof(GLuint) * triangleCount * 3);
 
-	for (x = 0; x < (int) TERRAIN_WIDTH; x++)
+	for (x = 0; x < (int) TERRAIN_WIDTH; x++) {
 		for (z = 0; z < (int) TERRAIN_DEPTH; z++)
 		{
-// Vertex array. You need to scale this properly
 			vertexArray[x + z * TERRAIN_WIDTH] = SetVector(
 					x * TILE_WIDTH_X,
 					terrain_height_at(x, z),
 					z * TILE_WIDTH_Z);
-// Normal vectors. You need to calculate these.
 			normalArray[x + z * TERRAIN_WIDTH] = SetVector(0.0, 1.0, 0.0);
-// Texture coordinates. You may want to scale them.
 			texCoordArray[x + z * TERRAIN_WIDTH].x = x; // (float)x / tex->width;
 			texCoordArray[x + z * TERRAIN_WIDTH].y = z; // (float)z / tex->height;
 		}
-	for (x = 0; x < (int) TERRAIN_WIDTH-1; x++)
+	}
+
+	for (x = 0; x < (int) TERRAIN_WIDTH-1; x++) {
 		for (z = 0; z < (int) TERRAIN_DEPTH-1; z++)
 		{
-		// Triangle 1
 			indexArray[(x + z * (TERRAIN_WIDTH-1))*6 + 0] = x + z * TERRAIN_WIDTH;
 			indexArray[(x + z * (TERRAIN_WIDTH-1))*6 + 1] = x + (z+1) * TERRAIN_WIDTH;
 			indexArray[(x + z * (TERRAIN_WIDTH-1))*6 + 2] = x+1 + z * TERRAIN_WIDTH;
-		// Triangle 2
+
 			indexArray[(x + z * (TERRAIN_WIDTH-1))*6 + 3] = x+1 + z * TERRAIN_WIDTH;
 			indexArray[(x + z * (TERRAIN_WIDTH-1))*6 + 4] = x + (z+1) * TERRAIN_WIDTH;
 			indexArray[(x + z * (TERRAIN_WIDTH-1))*6 + 5] = x+1 + (z+1) * TERRAIN_WIDTH;
 		}
+	}
 
-	for (x = 0; x < (int) TERRAIN_WIDTH; x++)
+	for (x = 0; x < (int) TERRAIN_WIDTH; x++) {
 		for (z = 0; z < (int) TERRAIN_DEPTH; z++)
 		{
 			float totAng = 0.0;
@@ -232,10 +202,7 @@ Model* GenerateTerrain()
 			}
 			normalArray[x + z * TERRAIN_WIDTH] = ScalarMult(normal, totAng);
 		}
-
-	// End of terrain generation
-
-	// Create Model and upload to GPU:
+	}
 
 	Model* model = LoadDataToModel(
 			vertexArray,
@@ -249,10 +216,14 @@ Model* GenerateTerrain()
 	return model;
 }
 
+#define THING_TERRAIN 0
+#define THING_ENEMY 1
+#define THING_PLAYER 2
+
 struct thing {
 	vec3 pos;
 	vec3 vel;
-	int gravity;
+	int type;
 	Model *model;
 	GLuint texture;
 };
@@ -277,13 +248,14 @@ void drawEverything() {
 }
 
 #define GRAVITY_ACCEL 50
+#define ENEMY_SPEED 3
 
 void updateEverything(float delta_t) {
 	for (int i = 0; i < num_things; i++) {
 		struct thing *t = &things[i];
 		// Do gravity
-		if (t->gravity) {
-			float ground_y = terrain_height_at(t->pos.x, t->pos.z) + 10.0f;
+		if (t->type != THING_TERRAIN) {
+			float ground_y = terrain_height_at(t->pos.x, t->pos.z) + 1.0f;
 			if (t->pos.y > ground_y) {
 				// Falling
 				t->vel.y -= GRAVITY_ACCEL * delta_t;
@@ -293,18 +265,23 @@ void updateEverything(float delta_t) {
 				t->vel.y = 0.0f;
 			}
 		}
+		if (t->type == THING_ENEMY) {
+			vec2 dir = random_unit2();
+			t->vel.x += ENEMY_SPEED * dir.x;
+			t->vel.z += ENEMY_SPEED * dir.y;
+		}
 		// Do physics
 		t->pos = VectorAdd(t->pos, ScalarMult(t->vel, delta_t));
 	}
 }
 
-void createThing(const Model *model, const GLuint texture, float x, float y, float z, int gravity) {
+void createThing(const Model *model, const GLuint texture, float x, float y, float z, int type) {
 	struct thing *t = &things[num_things++];
 	t->model = model;
 	t->texture = texture;
 	t->pos = SetVector(x, y, z);
 	t->vel = SetVector(0, 0, 0);
-	t->gravity = gravity;
+	t->type = type;
 }
 
 void init(void)
@@ -339,9 +316,8 @@ void init(void)
 	LoadTGATextureSimple("res/dirt.tga", &dirt);
 	LoadTGATextureSimple("res/grass.tga", &grass);
 
-	// Generate terrain data
-	// LoadTGATextureData("fft-terrain.tga", &ttex);
-	terrain = GenerateTerrain();
+	// Generate terrain model
+	terrain = terrain_generate_model();
 	printError("init terrain");
 
 	// Load models
@@ -351,12 +327,12 @@ void init(void)
 
 	createThing(terrain, grass, 0, 0, 0, 0);
 	createThing(car, concrete, 0, 0, 0, 1);
-	createThing(sphere, maskros, 50, 50, 50, 1);
-	createThing(sphere, maskros, 150, 50, 50, 1);
-	createThing(sphere, maskros, 50, 50, 150, 1);
-	createThing(sphere, maskros, 80, 50, 50, 1);
-	createThing(sphere, maskros, 80, 50, 80, 1);
-	createThing(sphere, maskros, 50, 80, 50, 1);
+	createThing(sphere, maskros, 50, 50, 50, THING_ENEMY);
+	createThing(sphere, maskros, 60, 50, 50, THING_ENEMY);
+	createThing(sphere, maskros, 50, 50, 90, THING_ENEMY);
+	createThing(sphere, maskros, 80, 50, 50, THING_ENEMY);
+	createThing(sphere, maskros, 80, 50, 80, THING_ENEMY);
+	createThing(sphere, maskros, 50, 80, 50, THING_ENEMY);
 
 	// Setup light sources
 	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), lightCount, lightSourcesDirPosArr);
@@ -389,86 +365,6 @@ void display(void)
 	glUniform1f(glGetUniformLocation(program, "time"), t);
 
 	glUniform1i(glGetUniformLocation(program, "fogEnable"), fogEnable);
-
-	/*
-	// Draw the ground
-	modelView = IdentityMatrix();
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, grass);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, dirt);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, concrete);
-	DrawModel(terrain, program, "inPosition", "inNormal", "inTexCoord");
-	*/
-
-	/*
-	// Draw eight copies of the ground in every direction
-	const float w = TILE_WIDTH_X * ttex.width;
-	const float h = TILE_WIDTH_Z * ttex.height;
-	modelView = T(w, 0.0, 0.0);
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
-	modelView = T(-w, 0.0, 0.0);
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
-	modelView = T(0.0, 0.0, h);
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
-	modelView = T(0.0, 0.0, -h);
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
-	modelView = T(w, 0.0, h);
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
-	modelView = T(-w, 0.0, -h);
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
-	modelView = T(-w, 0.0, h);
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
-	modelView = T(w, 0.0, -h);
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
-	*/
-
-	/*
-	 // Draw octagon and ball
-	x = 60.0 + 30.0 * cos(t / 3.0);
-	z = 60.0 + 30.0 * sin(t / 3.0);
-	y = terrain_height_at(x, z);
-	vec3 n = hmNormalAt(x, z);
-	vec3 v = Normalize(VectorSub(SetVector(1.0, 0.0, 0.0), ScalarMult(n, n.x)));
-	vec3 u = Normalize(CrossProduct(n, v));
-	mat4 tiltMatrix1 = {{
-		v.x, n.x, u.x, 0.0,
-		v.y, n.y, u.y, 0.0,
-		v.z, n.z, u.z, 0.0,
-		0.0, 0.0, 0.0, 1.0,
-	}};
-	modelView = Mult(Mult(T(x, y, z), S(5.0, 5.0, 5.0)), tiltMatrix1);
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	glBindTexture(GL_TEXTURE_2D, maskros);
-	DrawModel(sphere, program, "inPosition", "inNormal", "inTexCoord");
-
-	x = 60.0 + 50.0 * pow(cos(t / 4.0), 2);
-	z = 60.0 + 50.0 * pow(sin(t / 4.0), 1);
-	y = terrain_height_at(x, z);
-	n = hmNormalAt(x, z);
-	v = Normalize(VectorSub(SetVector(1.0, 0.0, 0.0), ScalarMult(n, n.x)));
-	u = Normalize(CrossProduct(n, v));
-	mat4 tiltMatrix2 = {{
-		v.x, n.x, u.x, 0.0,
-		v.y, n.y, u.y, 0.0,
-		v.z, n.z, u.z, 0.0,
-		0.0, 0.0, 0.0, 1.0,
-	}};
-	modelView = Mult(Mult(T(x, y, z), S(5.0, 5.0, 5.0)), tiltMatrix2);
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, modelView.m);
-	glBindTexture(GL_TEXTURE_2D, maskros);
-	DrawModel(octagon, program, "inPosition", "inNormal", "inTexCoord");
-	*/
 
 	drawEverything();
 	printError("drawEverything");
