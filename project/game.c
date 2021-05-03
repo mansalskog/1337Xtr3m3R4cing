@@ -268,10 +268,14 @@ void drawEverything() {
 	for (int i = 0; i < num_things; i++) {
 		struct thing *t = &things[i];
 		mat4 mdlMatrix = Mult(
-				T(t->pos.x, t->pos.y, t->pos.z),
-				Ry(-t->angle_y));
+                T(t->pos.x, t->pos.y, t->pos.z),
+                Ry(-t->angle_y));
 		glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
 		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, t->texture);
+        glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, t->texture);
+		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, t->texture);
 		DrawModel(t->model, program, "inPosition", "inNormal", "inTexCoord");
 	}
@@ -374,7 +378,7 @@ void init(void)
 	// GL inits
 	glClearColor(0.2,0.2,0.5,0);
 	glEnable(GL_DEPTH_TEST);
-	glDisable(GL_CULL_FACE);
+	glEnable(GL_CULL_FACE);
 	printError("GL inits");
 
 	// Enable transparency
@@ -408,17 +412,17 @@ void init(void)
 	// Load models
 	Model *sphere = LoadModel("res/groundsphere.obj");
 	Model *octagon = LoadModel("res/octagon.obj");
-	Model *car = LoadModel("res/SPECTER_GT3_.obj");
+	Model *car = LoadModel("res/artega_gt.obj");
 
 	createThing(terrain, grass, 0, 0, 0, 0);
 	createThing(car, concrete, 0, 0, 0, 1);
-	createThing(octagon, maskros, 50, 50, 50, THING_ENEMY);
-	createThing(octagon, maskros, 60, 50, 50, THING_ENEMY);
-	createThing(octagon, maskros, 50, 50, 90, THING_ENEMY);
+	createThing(car, maskros, 50, 50, 50, THING_ENEMY);
+	createThing(car, maskros, 60, 50, 50, THING_ENEMY);
+	createThing(car, maskros, 50, 50, 90, THING_ENEMY);
 	createThing(octagon, maskros, 80, 50, 50, THING_ENEMY);
 	createThing(octagon, maskros, 80, 50, 80, THING_ENEMY);
-	createThing(octagon, maskros, 50, 80, 50, THING_ENEMY);
-	player = createThing(octagon, grass, 0, 0, 0, THING_PLAYER);
+	createThing(car, maskros, 50, 80, 50, THING_ENEMY);
+	player = createThing(car, grass, 0, 0, 0, THING_PLAYER);
 
 	// Setup light sources
 	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), lightCount, lightSourcesDirPosArr);
