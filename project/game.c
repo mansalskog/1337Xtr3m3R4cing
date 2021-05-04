@@ -257,7 +257,9 @@ Model* terrain_generate_model()
 #define GRAVITY_ACCEL 30
 
 #define CAR_ACCEL 20
+#define CAR_BRAKE_ACCEL 10
 #define CAR_MAX_SPEED 100
+#define CAR_MIN_SPEED 3
 #define CAR_TURN_SPEED 0.8f
 #define CAR_AIR_DRAG 0.02f
 
@@ -278,6 +280,7 @@ struct thing {
 	vec3 last_normal;
 	Model *model;
 	GLuint texture;
+    mat4 baseMdlMatrix;
 };
 
 // Global variables //
@@ -295,8 +298,9 @@ void drawEverything() {
 		mat4 mdlMatrix;
 		if (t->type == THING_TERRAIN) {
 			mdlMatrix = Mult(
-					T(t->pos.x, t->pos.y, t->pos.z),
-					Ry(-t->angle_y));
+                Mult(T(t->pos.x, t->pos.y, t->pos.z),
+                     Ry(-t->angle_y)),
+                t->baseMdlMatrix);
 		} else if (t->type != THING_TERRAIN) {
 			vec3 n = terrain_normal_at(t->pos.x, t->pos.z);
 			// If we're in the air, use the last normal vector from when on the ground
@@ -315,10 +319,9 @@ void drawEverything() {
 				v.z, n.z, u.z, 0.0,
 				0.0, 0.0, 0.0, 1.0,
 			}};
-			mat4 baseMdlMatrix = Ry(M_PI / 2.0f);
 			mdlMatrix = Mult(
 					Mult(T(t->pos.x, t->pos.y, t->pos.z), tiltMatrix),
-					Mult(Ry(-t->angle_y), baseMdlMatrix));
+					Mult(Ry(-t->angle_y), t->baseMdlMatrix));
 		}
 		glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
 		glActiveTexture(GL_TEXTURE0);
@@ -365,10 +368,18 @@ void updateEverything(float delta_t) {
 			int forward = glutKeyIsDown('w') || glutKeyIsDown(GLUT_KEY_UP);
 			int left = glutKeyIsDown('a') || glutKeyIsDown(GLUT_KEY_LEFT);
 			int right = glutKeyIsDown('d') || glutKeyIsDown(GLUT_KEY_RIGHT);
+            int brake = glutKeyIsDown('s') || glutKeyIsDown(GLUT_KEY_DOWN);
 			// Accelerating
 			if (forward) {
-				player->vel = VectorAdd(player->vel, ScalarMult(angle_y_vec(player->angle_y), delta_t * CAR_ACCEL));
+				player->vel = VectorAdd(player->vel,
+                                        ScalarMult(angle_y_vec(player->angle_y),
+                                                   delta_t * CAR_ACCEL));
 			}
+            if (brake) {
+                player->vel = VectorSub(player->vel,
+                                        ScalarMult(angle_y_vec(player->angle_y),
+                                                   delta_t * CAR_BRAKE_ACCEL));
+            }
 			// Limit speed to maximum
 			float speed = norm2(player->vel.x, player->vel.z);
 			if (speed > CAR_MAX_SPEED) {
@@ -376,11 +387,11 @@ void updateEverything(float delta_t) {
 				player->vel.z *= CAR_MAX_SPEED / speed;
 			}
 			// Turning left and right
-			if (left && speed > 0.0f) {
-				player->angle_y += delta_t * CAR_TURN_SPEED;
-			}
-			if (right && speed > 0.0f) {
+			if (left && speed > CAR_MIN_SPEED) {
 				player->angle_y -= delta_t * CAR_TURN_SPEED;
+			}
+			if (right && speed > CAR_MIN_SPEED) {
+				player->angle_y += delta_t * CAR_TURN_SPEED;
 			}
 			// Do friction and air drag
 			player->vel = VectorAdd(player->vel, ScalarMult(player->vel, -CAR_AIR_DRAG));
@@ -390,13 +401,16 @@ void updateEverything(float delta_t) {
 	}
 }
 
-struct thing *createThing(Model *model, GLuint texture, float x, float y, float z, int type) {
+struct thing *createThing(Model *model, GLuint texture,
+                          float x, float y, float z,
+                          int type, mat4 baseMdlMatrix) {
 	struct thing *t = &things[num_things++];
 	t->model = model;
 	t->texture = texture;
 	t->pos = SetVector(x, y, z);
 	t->vel = SetVector(0, 0, 0);
 	t->type = type;
+    t->baseMdlMatrix = baseMdlMatrix;
 	return t;
 }
 
@@ -470,10 +484,10 @@ void init(void)
 	Model *sphere = LoadModel("res/groundsphere.obj");
 	Model *octagon = LoadModel("res/octagon.obj");
 	Model *car = LoadModel("res/artega_gt.obj");
-	Model *tree = LoadModel("res/octagon.obj");
-	Model *rock = LoadModel("res/octagon.obj");
-	Model *oildrum = LoadModel("res/octagon.obj");
-	Model *tires = LoadModel("res/octagon.obj");
+	Model *tree = LoadModel("res/cgaxis_models_115_37_obj.obj");
+	Model *rock = LoadModel("res/Rock_1.obj");
+	Model *oildrum = LoadModel("res/barrel.obj.obj");
+	Model *tires = LoadModel("res/wheel.obj");
 
 	// Create static terrain (trees and rocks)
 	for (int i = 0; i < NUM_TERRAIN_OBJS; i++) {
@@ -494,19 +508,20 @@ void init(void)
 				model = tires;
 				break;
 		}
-		createThing(model, concrete, x, terrain_height_at(x, z), z, THING_TERRAIN);
+		createThing(model, concrete, x, terrain_height_at(x, z), z,
+                    THING_TERRAIN, S(0.05f, 0.05f, 0.05f));
 	}
 
 	// Create player and enemies
-	createThing(terrain, grass, 0, 0, 0, THING_TERRAIN);
-	createThing(car, concrete, 0, 0, 0, THING_ENEMY);
-	createThing(car, maskros, 50, 50, 50, THING_ENEMY);
-	createThing(car, maskros, 60, 50, 50, THING_ENEMY);
-	createThing(car, maskros, 50, 50, 90, THING_ENEMY);
-	createThing(octagon, maskros, 80, 50, 50, THING_ENEMY);
-	createThing(octagon, maskros, 80, 50, 80, THING_ENEMY);
-	createThing(car, maskros, 50, 80, 50, THING_ENEMY);
-	player = createThing(car, concrete, 0, 0, 0, THING_PLAYER);
+	createThing(terrain, grass, 0, 0, 0, THING_TERRAIN, IdentityMatrix());
+	createThing(car, concrete, 0, 0, 0, THING_ENEMY, Ry(M_PI / 2.0f));
+	createThing(car, maskros, 50, 50, 50, THING_ENEMY, Ry(M_PI / 2.0f));
+	createThing(car, maskros, 60, 50, 50, THING_ENEMY, Ry(M_PI / 2.0f));
+	createThing(car, maskros, 50, 50, 90, THING_ENEMY, Ry(M_PI / 2.0f));
+	createThing(octagon, maskros, 80, 50, 50, THING_ENEMY, IdentityMatrix());
+	createThing(octagon, maskros, 80, 50, 80, THING_ENEMY, IdentityMatrix());
+	createThing(car, maskros, 50, 80, 50, THING_ENEMY, Ry(M_PI / 2.0f));
+	player = createThing(car, concrete, 0, 0, 0, THING_PLAYER, Ry(M_PI / 2.0f));
 
 	// Setup light sources
 	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), lightCount, lightSourcesDirPosArr);
