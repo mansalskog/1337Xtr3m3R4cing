@@ -56,6 +56,10 @@ float random_unit() {
 	return 2.0f * (rand() / (float) RAND_MAX) - 1.0f;
 }
 
+float random_range(float min, float max) {
+	return (max - min) * random_unit() + min;
+}
+
 float norm2(float x, float y) {
 	return sqrt(x * x + y * y);
 }
@@ -68,7 +72,7 @@ vec3 angle_y_vec(float angle_y) {
 
 const float TERRAIN_WIDTH_FACTOR = 50.0f;
 const float TERRAIN_DEPTH_FACTOR = 50.0f;
-const float TERRAIN_HEIGHT_FACTOR = 25.0f;
+const float TERRAIN_HEIGHT_FACTOR = 15.0f;
 const int TERRAIN_WIDTH = 1000;
 const int TERRAIN_DEPTH = 1000;
 const float TERRAIN_TRIANGLE_SIZE = 2.0f;
@@ -263,6 +267,7 @@ Model* terrain_generate_model()
 #define CAMERA_MODE_LAST 2
 
 #define MAX_THINGS 1000
+#define NUM_TERRAIN_OBJS 400
 
 struct thing {
 	vec3 pos;
@@ -465,9 +470,36 @@ void init(void)
 	Model *sphere = LoadModel("res/groundsphere.obj");
 	Model *octagon = LoadModel("res/octagon.obj");
 	Model *car = LoadModel("res/artega_gt.obj");
+	Model *tree = LoadModel("res/octagon.obj");
+	Model *rock = LoadModel("res/octagon.obj");
+	Model *oildrum = LoadModel("res/octagon.obj");
+	Model *tires = LoadModel("res/octagon.obj");
 
-	createThing(terrain, grass, 0, 0, 0, 0);
-	createThing(car, concrete, 0, 0, 0, 1);
+	// Create static terrain (trees and rocks)
+	for (int i = 0; i < NUM_TERRAIN_OBJS; i++) {
+		float x = random_range(-TERRAIN_WIDTH, TERRAIN_WIDTH);
+		float z = random_range(-TERRAIN_DEPTH, TERRAIN_DEPTH);
+		Model *model;
+		switch (rand() % 4) {
+			case 0:
+				model = tree;
+				break;
+			case 1:
+				model = rock;
+				break;
+			case 2:
+				model = oildrum;
+				break;
+			case 3:
+				model = tires;
+				break;
+		}
+		createThing(model, concrete, x, terrain_height_at(x, z), z, THING_TERRAIN);
+	}
+
+	// Create player and enemies
+	createThing(terrain, grass, 0, 0, 0, THING_TERRAIN);
+	createThing(car, concrete, 0, 0, 0, THING_ENEMY);
 	createThing(car, maskros, 50, 50, 50, THING_ENEMY);
 	createThing(car, maskros, 60, 50, 50, THING_ENEMY);
 	createThing(car, maskros, 50, 50, 90, THING_ENEMY);
