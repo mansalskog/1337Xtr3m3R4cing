@@ -68,13 +68,12 @@ vec3 angle_y_vec(float angle_y) {
 
 const float TERRAIN_WIDTH_FACTOR = 50.0f;
 const float TERRAIN_DEPTH_FACTOR = 50.0f;
-const float TERRAIN_HEIGHT_FACTOR = 15.0f;
-const int TERRAIN_WIDTH = 500;
-const int TERRAIN_DEPTH = 500;
+const float TERRAIN_HEIGHT_FACTOR = 25.0f;
+const int TERRAIN_WIDTH = 1000;
+const int TERRAIN_DEPTH = 1000;
 const float TERRAIN_TRIANGLE_SIZE = 2.0f;
 
 vec2 terrain_gradient(int x0, int z0) {
-	// float angle = 2920.f * sin(x0 * 21942.f + z0 * 171324.f + 8912.f) * cos(x0 * 23157.f * z0 * 217832.f + 9758.f);
 	srand(1337420 * x0 + 999999 * z0);
 	float angle = 2.0f * M_PI * (rand() / (float) RAND_MAX);
 	vec2 g = {cos(angle), sin(angle)};
@@ -111,10 +110,20 @@ float terrain_height_at(float x, float z) {
 vec3 terrain_normal_at(float x, float z) {
 	const float delta = 0.001;
 	float h = terrain_height_at(x, z);
-	return Normalize(CrossProduct(
+	vec3 npp = Normalize(CrossProduct(
+			SetVector(delta, terrain_height_at(x + delta, z) - h, 0),
+			SetVector(0, terrain_height_at(x, z + delta) - h, delta)));
+	vec3 nmp = Normalize(CrossProduct(
 			SetVector(0, terrain_height_at(x, z + delta) - h, delta),
-			SetVector(delta, terrain_height_at(x + delta, z) - h, 0)
-			));
+			SetVector(-delta, terrain_height_at(x - delta, z) - h, 0)));
+	vec3 nmm = Normalize(CrossProduct(
+			SetVector(-delta, terrain_height_at(x - delta, z) - h, 0),
+			SetVector(0, terrain_height_at(x, z - delta) - h, -delta)));
+	vec3 npm = Normalize(CrossProduct(
+			SetVector(0, terrain_height_at(x, z - delta) - h, -delta),
+			SetVector(delta, terrain_height_at(x + delta, z) - h, 0)));
+
+	return ScalarMult(Normalize(VectorAdd(VectorAdd(npp, nmp), VectorAdd(nmm, nmp))), -1.0f);
 }
 
 /*
@@ -241,10 +250,10 @@ Model* terrain_generate_model()
 #define THING_ENEMY 1
 #define THING_PLAYER 2
 
-#define GRAVITY_ACCEL 50
+#define GRAVITY_ACCEL 30
 
-#define CAR_ACCEL 200
-#define CAR_MAX_SPEED 40
+#define CAR_ACCEL 20
+#define CAR_MAX_SPEED 100
 #define CAR_TURN_SPEED 0.8f
 #define CAR_AIR_DRAG 0.02f
 
@@ -260,6 +269,8 @@ struct thing {
 	vec3 vel;
 	float angle_y;
 	int type;
+	float air_height;
+	vec3 last_normal;
 	Model *model;
 	GLuint texture;
 };
@@ -283,8 +294,16 @@ void drawEverything() {
 					Ry(-t->angle_y));
 		} else if (t->type != THING_TERRAIN) {
 			vec3 n = terrain_normal_at(t->pos.x, t->pos.z);
+			// If we're in the air, use the last normal vector from when on the ground
+			if (t->air_height > 0.0f) {
+				n = Normalize(VectorAdd(
+							ScalarMult(t->last_normal, t->air_height),
+							ScalarMult(n, 1.0f / t->air_height)));
+			} else {
+				t->last_normal = n;
+			}
 			vec3 v = Normalize(VectorSub(SetVector(1.0, 0.0, 0.0), ScalarMult(n, n.x)));
-			vec3 u = Normalize(CrossProduct(n, v));
+			vec3 u = Normalize(CrossProduct(v, n));
 			mat4 tiltMatrix = {{
 				v.x, n.x, u.x, 0.0,
 				v.y, n.y, u.y, 0.0,
@@ -292,8 +311,9 @@ void drawEverything() {
 				0.0, 0.0, 0.0, 1.0,
 			}};
 			mat4 baseMdlMatrix = Ry(M_PI / 2.0f);
-			mdlMatrix = Mult(Mult(T(t->pos.x, t->pos.y, t->pos.z), Ry(-t->angle_y)),
-					Mult(tiltMatrix, baseMdlMatrix));
+			mdlMatrix = Mult(
+					Mult(T(t->pos.x, t->pos.y, t->pos.z), tiltMatrix),
+					Mult(Ry(-t->angle_y), baseMdlMatrix));
 		}
 		glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
 		glActiveTexture(GL_TEXTURE0);
@@ -315,10 +335,12 @@ void updateEverything(float delta_t) {
 			if (t->pos.y > ground_y) {
 				// Falling
 				t->vel.y -= GRAVITY_ACCEL * delta_t;
+				t->air_height = t->pos.y - ground_y;
 			} else {
 				// Standing
 				t->pos.y = ground_y;
 				t->vel.y = 0.0f;
+				t->air_height = 0.0f;
 			}
 		}
 		// Update enemies
@@ -394,6 +416,11 @@ void setCameraMatrix() {
 		exit(EXIT_FAILURE);
 	}
 	const vec3 up_vector = {0, 1, 0};
+	// Make sure camera is not underneath the ground
+	float min_height = terrain_height_at(view_pos.x, view_pos.z) + 5.0f;
+	if (view_pos.y < min_height) {
+		view_pos.y = min_height;
+	}
 	mat4 cameraMatrix = lookAtv(view_pos, view_target, up_vector);
 	glUniformMatrix4fv(glGetUniformLocation(program, "camMatrix"), 1, GL_TRUE, cameraMatrix.m);
 }
