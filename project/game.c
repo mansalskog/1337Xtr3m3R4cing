@@ -78,12 +78,11 @@ const int TERRAIN_WIDTH = 1000;
 const int TERRAIN_DEPTH = 1000;
 const float TERRAIN_TRIANGLE_SIZE = 2.0f; 
 
-// Decided at startup, used to seed random
-unsigned global_seed;
-
 vec2 terrain_gradient(int x0, int z0) {
-	srand(global_seed + 1337420 * x0 + 999999 * z0);
+	unsigned next_seed = rand();
+	srand(1337420 * x0 + 999999 * z0);
 	float angle = 2.0f * M_PI * (rand() / (float) RAND_MAX);
+	srand(next_seed);
 	vec2 g = {cos(angle), sin(angle)};
 	return g;
 }
@@ -295,6 +294,7 @@ struct thing {
 	int type;
 	float air_height;
 	vec3 last_normal;
+	int nextWaypoint;
 	Model *model;
 	GLuint textures[MAX_THING_TEXTURES];
     mat4 baseMdlMatrix;
@@ -309,6 +309,7 @@ struct thing *terrain;
 int camera_mode = CAMERA_ABOVE_CAR;
 GLuint program;
 vec3 waypoints[NUM_WAYPOINTS];
+int paused = 1;
 
 void drawEverything() {
 	for (int i = 0; i < num_things; i++) {
@@ -396,19 +397,30 @@ void updateEverything(float delta_t) {
 		}
 		// Update enemies
 		if (t->type == THING_ENEMY) {
-			// Turn in a random direction
-			// t->angle_y += delta_t * CAR_TURN_SPEED * random_unit();
-
-			// Drive faster on road
-			float accel = CAR_ACCEL;
-			if (isOnRoad(t->pos)) {
-				accel = CAR_ROAD_ACCEL;
+			// Turn towards next waypoint
+			vec3 v_to_wp = VectorSub(waypoints[t->nextWaypoint], t->pos);
+			float angle_to_wp = atan2(v_to_wp.z, v_to_wp.x);
+			const float DELTA = 0.05f;
+			if (fmod(t->angle_y, 2.0f*M_PI) < fmod(angle_to_wp - DELTA, 2.0f*M_PI)) {
+				t->angle_y += delta_t * CAR_TURN_SPEED;
+			} else if (fmod(t->angle_y, 2.0f*M_PI) > fmod(angle_to_wp + DELTA, 2.0f*M_PI)) {
+				t->angle_y -= delta_t * CAR_TURN_SPEED;
 			}
-			srand(time(0));
-			if (rand() > RAND_MAX / 2) {
-				t->vel = VectorAdd(t->vel,
-								   ScalarMult(angle_y_vec(t->angle_y),
-											  delta_t * accel));
+			t->angle_y = fmod(t->angle_y + angle_to_wp, 2.0f*M_PI) / 2.0f;
+			// Drive faster on road
+			float max_accel = CAR_ACCEL;
+			if (isOnRoad(t->pos)) {
+				max_accel = CAR_ROAD_ACCEL;
+			}
+			// """ PD - control system """
+			float accel = max_accel; // Norm(v_to_wp); // - Norm(t->vel);
+			accel = fmax(fmin(accel, max_accel), -CAR_BRAKE_ACCEL);
+			t->vel = VectorAdd(t->vel,
+							   ScalarMult(angle_y_vec(t->angle_y),
+										  delta_t * accel));
+			// Select new waypoint if close enough
+			if (Norm(v_to_wp) < 20.0f) {
+				t->nextWaypoint = (t->nextWaypoint + 1) % NUM_WAYPOINTS;
 			}
 		}
 		// Update the player
@@ -417,13 +429,11 @@ void updateEverything(float delta_t) {
 			int left = glutKeyIsDown('a') || glutKeyIsDown(GLUT_KEY_LEFT);
 			int right = glutKeyIsDown('d') || glutKeyIsDown(GLUT_KEY_RIGHT);
             int brake = glutKeyIsDown('s') || glutKeyIsDown(GLUT_KEY_DOWN);
-
 			// Drive faster on road
 			float accel = CAR_ACCEL;
 			if (isOnRoad(t->pos)) {
 				accel = CAR_ROAD_ACCEL;
 			}
-
 			// Accelerating
 			if (forward) {
 				t->vel = VectorAdd(t->vel,
@@ -478,6 +488,7 @@ struct thing *createThing(float x, float y, float z,
 	t->vel = SetVector(0, 0, 0);
 	t->type = type;
     t->baseMdlMatrix = baseMdlMatrix;
+	t->nextWaypoint = 0;
 	return t;
 }
 
@@ -527,9 +538,8 @@ void setCameraMatrix() {
 
 void init(void)
 {
-	// Get a random seed
+	// Set random seed
 	srand(time(0));
-	global_seed = rand();
 
 	// GL inits
 	glClearColor(0.2,0.2,0.5,0);
@@ -607,9 +617,10 @@ void init(void)
 	for (int i = 0; i < NUM_TERRAIN_OBJS; i++) {
 		// Pick a random waypoint
 		vec3 wp = waypoints[rand() % NUM_WAYPOINTS];
-		const float DEV = 10.0f;
-		float x = wp.x + random_range(-DEV, DEV);
-		float z = wp.z + random_range(-DEV, DEV);
+		const float RADIUS = 70.0f;
+		float angle = random_range(0, 2.0f * M_PI);
+		float x = wp.x + RADIUS * cos(angle);
+		float z = wp.z + RADIUS * sin(angle);
 		Model *model;
 		switch (rand() % 4) {
 			case 0:
@@ -682,13 +693,14 @@ void display(void)
 }
 
 GLfloat prev_t = 0.0;
-int paused = 0;
 
 void timer(int i)
 {
 	glutTimerFunc(20, &timer, i);
     GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	updateEverything(t - prev_t);
+	if (!paused) {
+		updateEverything(t - prev_t);
+	}
 	prev_t = t;
 	glutPostRedisplay();
 }
@@ -700,6 +712,7 @@ void mouse(int x, int y)
 void keyboard(unsigned char key, int x, int y) {
 	if (key == GLUT_KEY_ESC) {
 		// Handle pause menu
+		paused = !paused;
 	} else if (key == 'f') {
 		fogEnable = !fogEnable;
 	} else if (key == 'c') {
