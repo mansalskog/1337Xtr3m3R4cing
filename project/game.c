@@ -8,6 +8,7 @@
 #include "VectorUtils3.h"
 #include "LittleOBJLoader.h"
 #include "LoadTGA.h"
+#include <time.h>
 
 const int WIN_WIDTH = 800;
 const int WIN_HEIGHT = 800;
@@ -70,15 +71,18 @@ vec3 angle_y_vec(float angle_y) {
 
 ///// Terrain (heightmap) /////
 
-const float TERRAIN_WIDTH_FACTOR = 50.0f;
-const float TERRAIN_DEPTH_FACTOR = 50.0f;
+const float TERRAIN_WIDTH_FACTOR = 200.0f;
+const float TERRAIN_DEPTH_FACTOR = 200.0f;
 const float TERRAIN_HEIGHT_FACTOR = 15.0f;
 const int TERRAIN_WIDTH = 1000;
 const int TERRAIN_DEPTH = 1000;
-const float TERRAIN_TRIANGLE_SIZE = 2.0f;
+const float TERRAIN_TRIANGLE_SIZE = 2.0f; 
+
+// Decided at startup, used to seed random
+unsigned global_seed;
 
 vec2 terrain_gradient(int x0, int z0) {
-	srand(1337420 * x0 + 999999 * z0);
+	srand(global_seed + 1337420 * x0 + 999999 * z0);
 	float angle = 2.0f * M_PI * (rand() / (float) RAND_MAX);
 	vec2 g = {cos(angle), sin(angle)};
 	return g;
@@ -256,20 +260,33 @@ Model* terrain_generate_model()
 
 #define GRAVITY_ACCEL 30
 
-#define CAR_ACCEL 20
-#define CAR_BRAKE_ACCEL 10
+#define CAR_ACCEL 100
+#define CAR_ROAD_ACCEL 200
+#define CAR_BRAKE_ACCEL 50
 #define CAR_MAX_SPEED 100
-#define CAR_MIN_SPEED 3
+#define CAR_ROAD_MAX_SPEED 200
+
+// Minimum speed required to turn
+#define CAR_MIN_TURN_SPEED 3
 #define CAR_TURN_SPEED 0.8f
-#define CAR_AIR_DRAG 0.02f
+
+#define CAR_AIR_DRAG 0.10f
+#define CAR_AIR_DRAG_EXTRA 0.50f
 
 #define CAMERA_BEHIND_FAR 0
 #define CAMERA_BEHIND_CLOSE 1
 #define CAMERA_IN_CAR 2
-#define CAMERA_MODE_LAST 2
+#define CAMERA_ABOVE_CAR 3
+#define CAMERA_ABOVE_MAP 4
+#define CAMERA_MODE_LAST 4
 
 #define MAX_THINGS 1000
-#define NUM_TERRAIN_OBJS 400
+#define MAX_THING_TEXTURES 4
+#define NUM_TERRAIN_OBJS 40
+#define NUM_ENEMIES 50
+#define NUM_WAYPOINTS 50
+
+#define ROAD_WIDTH 25.0f
 
 struct thing {
 	vec3 pos;
@@ -279,7 +296,7 @@ struct thing {
 	float air_height;
 	vec3 last_normal;
 	Model *model;
-	GLuint texture;
+	GLuint textures[MAX_THING_TEXTURES];
     mat4 baseMdlMatrix;
 };
 
@@ -288,9 +305,10 @@ struct thing {
 int num_things = 0;
 struct thing things[MAX_THINGS];
 struct thing *player;
-int camera_mode = CAMERA_BEHIND_FAR;
-Model *terrain;
+struct thing *terrain;
+int camera_mode = CAMERA_ABOVE_CAR;
 GLuint program;
+vec3 waypoints[NUM_WAYPOINTS];
 
 void drawEverything() {
 	for (int i = 0; i < num_things; i++) {
@@ -325,13 +343,38 @@ void drawEverything() {
 		}
 		glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, t->texture);
+		glBindTexture(GL_TEXTURE_2D, t->textures[0]);
         glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, t->texture);
+		glBindTexture(GL_TEXTURE_2D, t->textures[1]);
 		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, t->texture);
+		glBindTexture(GL_TEXTURE_2D, t->textures[2]);
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, t->textures[3]);
+		glUniform1i(glGetUniformLocation(program, "thingType"), t->type);
 		DrawModel(t->model, program, "inPosition", "inNormal", "inTexCoord");
 	}
+}
+
+int isOnRoad(vec3 pos) {
+	for (int i = 0; i < NUM_WAYPOINTS; i++) {
+		// Line segment from waypoints[i-1] to waypoints[i]
+		vec3 v;
+		if (i == 0) {
+			v = VectorSub(waypoints[i], waypoints[NUM_WAYPOINTS-1]);
+		} else {
+			v = VectorSub(waypoints[i], waypoints[i-1]);
+		}
+		vec3 u = VectorSub(pos, waypoints[i]);
+		vec3 proj = ScalarMult(v, DotProduct(u, v) / DotProduct(v, v));
+		float d = DotProduct(proj, v);
+		if (-DotProduct(v, v) < d && d < 0.0 && Norm(VectorSub(u, proj)) < ROAD_WIDTH) {
+			return 1;
+		}
+		if (Norm(u) < ROAD_WIDTH) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 void updateEverything(float delta_t) {
@@ -354,13 +397,18 @@ void updateEverything(float delta_t) {
 		// Update enemies
 		if (t->type == THING_ENEMY) {
 			// Turn in a random direction
-			t->angle_y += delta_t * CAR_TURN_SPEED * random_unit();
-			t->vel = VectorAdd(t->vel, ScalarMult(angle_y_vec(t->angle_y), delta_t * CAR_ACCEL));
-			// Limit speed to maxmimum
-			float speed = norm2(t->vel.x, t->vel.z);
-			if (speed > CAR_MAX_SPEED) {
-				t->vel.x *= CAR_MAX_SPEED / speed;
-				t->vel.z *= CAR_MAX_SPEED / speed;
+			// t->angle_y += delta_t * CAR_TURN_SPEED * random_unit();
+
+			// Drive faster on road
+			float accel = CAR_ACCEL;
+			if (isOnRoad(t->pos)) {
+				accel = CAR_ROAD_ACCEL;
+			}
+			srand(time(0));
+			if (rand() > RAND_MAX / 2) {
+				t->vel = VectorAdd(t->vel,
+								   ScalarMult(angle_y_vec(t->angle_y),
+											  delta_t * accel));
 			}
 		}
 		// Update the player
@@ -369,44 +417,63 @@ void updateEverything(float delta_t) {
 			int left = glutKeyIsDown('a') || glutKeyIsDown(GLUT_KEY_LEFT);
 			int right = glutKeyIsDown('d') || glutKeyIsDown(GLUT_KEY_RIGHT);
             int brake = glutKeyIsDown('s') || glutKeyIsDown(GLUT_KEY_DOWN);
+
+			// Drive faster on road
+			float accel = CAR_ACCEL;
+			if (isOnRoad(t->pos)) {
+				accel = CAR_ROAD_ACCEL;
+			}
+
 			// Accelerating
 			if (forward) {
-				player->vel = VectorAdd(player->vel,
-                                        ScalarMult(angle_y_vec(player->angle_y),
-                                                   delta_t * CAR_ACCEL));
+				t->vel = VectorAdd(t->vel,
+								   ScalarMult(angle_y_vec(t->angle_y),
+											  delta_t * accel));
 			}
+			// Brake / reverse
             if (brake) {
-                player->vel = VectorSub(player->vel,
-                                        ScalarMult(angle_y_vec(player->angle_y),
-                                                   delta_t * CAR_BRAKE_ACCEL));
+                t->vel = VectorSub(t->vel,
+								   ScalarMult(angle_y_vec(t->angle_y),
+                                              delta_t * CAR_BRAKE_ACCEL));
             }
-			// Limit speed to maximum
-			float speed = norm2(player->vel.x, player->vel.z);
-			if (speed > CAR_MAX_SPEED) {
-				player->vel.x *= CAR_MAX_SPEED / speed;
-				player->vel.z *= CAR_MAX_SPEED / speed;
-			}
+			const float speed = norm2(t->vel.x, t->vel.z);
 			// Turning left and right
-			if (left && speed > CAR_MIN_SPEED) {
-				player->angle_y -= delta_t * CAR_TURN_SPEED;
+			if (left && speed > CAR_MIN_TURN_SPEED) {
+				t->angle_y -= delta_t * CAR_TURN_SPEED;
 			}
-			if (right && speed > CAR_MIN_SPEED) {
-				player->angle_y += delta_t * CAR_TURN_SPEED;
+			if (right && speed > CAR_MIN_TURN_SPEED) {
+				t->angle_y += delta_t * CAR_TURN_SPEED;
+			}
+		}
+		if (t->type == THING_ENEMY || t->type == THING_PLAYER) {
+			// Limit speed to maximum
+			float max_speed = CAR_MAX_SPEED;
+			if (isOnRoad(t->pos)) {
+				max_speed = CAR_ROAD_MAX_SPEED;
+			}
+			const float speed = norm2(t->vel.x, t->vel.z);
+			float air_drag = CAR_AIR_DRAG;
+			if (speed > max_speed) {
+				air_drag = CAR_AIR_DRAG_EXTRA;
 			}
 			// Do friction and air drag
-			player->vel = VectorAdd(player->vel, ScalarMult(player->vel, -CAR_AIR_DRAG));
+			t->vel = VectorAdd(t->vel, ScalarMult(t->vel, -air_drag));
+			// Do physics
+			t->pos = VectorAdd(t->pos, ScalarMult(t->vel, delta_t));
 		}
-		// Do physics
-		t->pos = VectorAdd(t->pos, ScalarMult(t->vel, delta_t));
 	}
 }
 
-struct thing *createThing(Model *model, GLuint texture,
-                          float x, float y, float z,
-                          int type, mat4 baseMdlMatrix) {
+struct thing *createThing(float x, float y, float z,
+						  int type,
+                          Model *model, mat4 baseMdlMatrix,
+						  GLuint tex0, GLuint tex1, GLuint tex2, GLuint tex3) {
 	struct thing *t = &things[num_things++];
 	t->model = model;
-	t->texture = texture;
+	t->textures[0] = tex0;
+	t->textures[1] = tex1;
+	t->textures[2] = tex2;
+	t->textures[3] = tex3;
 	t->pos = SetVector(x, y, z);
 	t->vel = SetVector(0, 0, 0);
 	t->type = type;
@@ -416,25 +483,39 @@ struct thing *createThing(Model *model, GLuint texture,
 
 void setCameraMatrix() {
 	vec3 view_pos, view_target;
-	if (camera_mode == CAMERA_BEHIND_FAR) {
-		view_pos = VectorAdd(player->pos, VectorAdd(
-				ScalarMult(angle_y_vec(player->angle_y), -30.0f),
-				SetVector(0, 10, 0)));
-		view_target = player->pos;
-	} else if (camera_mode == CAMERA_BEHIND_CLOSE) {
-		view_pos = VectorAdd(player->pos, VectorAdd(
-				ScalarMult(angle_y_vec(player->angle_y), -15.0f),
-				SetVector(0, 5, 0)));
-		view_target = player->pos;
-	} else if (camera_mode == CAMERA_IN_CAR) {
-		view_pos = VectorAdd(player->pos, SetVector(0, 10, 0));
-		view_target = VectorAdd(view_pos,
-				ScalarMult(angle_y_vec(player->angle_y), 50.0f));
-	} else {
-		fprintf(stderr, "Invalid camera mode %d!\n", camera_mode);
-		exit(EXIT_FAILURE);
+	vec3 up_vector = {0, 1, 0};
+	switch (camera_mode) {
+		case CAMERA_BEHIND_FAR:
+			view_pos = VectorAdd(player->pos, VectorAdd(
+						ScalarMult(angle_y_vec(player->angle_y), -30.0f),
+						SetVector(0, 10, 0)));
+			view_target = player->pos;
+			break;
+		case CAMERA_BEHIND_CLOSE:
+			view_pos = VectorAdd(player->pos, VectorAdd(
+						ScalarMult(angle_y_vec(player->angle_y), -15.0f),
+						SetVector(0, 5, 0)));
+			view_target = player->pos;
+			break;
+		case CAMERA_IN_CAR:
+			view_pos = VectorAdd(player->pos, SetVector(0, 10, 0));
+			view_target = VectorAdd(view_pos,
+					ScalarMult(angle_y_vec(player->angle_y), 50.0f));
+			break;
+		case CAMERA_ABOVE_CAR:
+			view_pos = VectorAdd(player->pos, SetVector(0, 200, 0));
+			view_target = player->pos;
+			up_vector = angle_y_vec(player->angle_y);
+			break;
+		case CAMERA_ABOVE_MAP:
+			view_pos = SetVector(0, 1400, 0);
+			view_target = SetVector(0, 0, 0);
+			up_vector = SetVector(1, 0, 0);
+			break;
+		default:
+			fprintf(stderr, "Invalid camera mode %d!\n", camera_mode);
+			exit(EXIT_FAILURE);
 	}
-	const vec3 up_vector = {0, 1, 0};
 	// Make sure camera is not underneath the ground
 	float min_height = terrain_height_at(view_pos.x, view_pos.z) + 5.0f;
 	if (view_pos.y < min_height) {
@@ -446,6 +527,10 @@ void setCameraMatrix() {
 
 void init(void)
 {
+	// Get a random seed
+	srand(time(0));
+	global_seed = rand();
+
 	// GL inits
 	glClearColor(0.2,0.2,0.5,0);
 	glEnable(GL_DEPTH_TEST);
@@ -456,7 +541,7 @@ void init(void)
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	projectionMatrix = frustum(-0.1, 0.1, -0.1, 0.1, 0.2, 500.0);
+	projectionMatrix = frustum(-0.1, 0.1, -0.1, 0.1, 0.2, 1500.0);
 
 	// Load and compile shader
 	program = loadShaders("vertex.glsl", "fragment.glsl");
@@ -468,6 +553,7 @@ void init(void)
 	glUniform1i(glGetUniformLocation(program, "tex0"), 0); // Texture unit 0
 	glUniform1i(glGetUniformLocation(program, "tex1"), 1); // Texture unit 1
 	glUniform1i(glGetUniformLocation(program, "tex2"), 2); // Texture unit 2
+	glUniform1i(glGetUniformLocation(program, "tex3"), 3); // Texture unit 3
 
 	// Load textures
 	GLuint maskros, concrete, dirt, grass;
@@ -477,7 +563,7 @@ void init(void)
 	LoadTGATextureSimple("res/grass.tga", &grass);
 
 	// Generate terrain model
-	terrain = terrain_generate_model();
+	Model *terrainMdl = terrain_generate_model();
 	printError("init terrain");
 
 	// Load models
@@ -489,10 +575,41 @@ void init(void)
 	Model *oildrum = LoadModel("res/barrel.obj.obj");
 	Model *tires = LoadModel("res/wheel.obj");
 
+	// Create terrain (ground)
+	terrain = createThing(0, 0, 0, THING_TERRAIN, terrainMdl, IdentityMatrix(), grass, dirt, concrete, maskros);
+
+	// Create waypoints
+	float r = TERRAIN_WIDTH / 2.0f;
+	for (int i = 0; i < NUM_WAYPOINTS; i++) {
+		const float VAR = 0.15f;
+		float dr;
+		if (r < TERRAIN_WIDTH / 3.0f) {
+			dr = random_range(0.0f, VAR * r);
+		} else if (r > TERRAIN_WIDTH / 1.5f) {
+			dr = random_range(-VAR * r, 0.0f);
+		} else {
+			dr = random_range(-VAR * r, VAR * r);
+		}
+		r += dr;
+		float angle = (M_PI * 2.0f * i) / (float) NUM_WAYPOINTS;
+		float x = r * cos(angle);
+		float z = r * sin(angle);
+		waypoints[i] = SetVector(x, terrain_height_at(x, z), z);
+	}
+
+	// Upload waypoints to GPU
+	// TODO: Maybe not completely ok to cast points?
+	glUniform3fv(glGetUniformLocation(program, "waypoints"), NUM_WAYPOINTS, (GLfloat *) waypoints);
+	printError("upload waypoints");
+
+
 	// Create static terrain (trees and rocks)
 	for (int i = 0; i < NUM_TERRAIN_OBJS; i++) {
-		float x = random_range(-TERRAIN_WIDTH, TERRAIN_WIDTH);
-		float z = random_range(-TERRAIN_DEPTH, TERRAIN_DEPTH);
+		// Pick a random waypoint
+		vec3 wp = waypoints[rand() % NUM_WAYPOINTS];
+		const float DEV = 10.0f;
+		float x = wp.x + random_range(-DEV, DEV);
+		float z = wp.z + random_range(-DEV, DEV);
 		Model *model;
 		switch (rand() % 4) {
 			case 0:
@@ -508,20 +625,28 @@ void init(void)
 				model = tires;
 				break;
 		}
-		createThing(model, concrete, x, terrain_height_at(x, z), z,
-                    THING_TERRAIN, S(0.05f, 0.05f, 0.05f));
+		createThing(x, terrain_height_at(x, z), z,
+                    THING_TERRAIN,
+					model, S(0.5f, 0.5f, 0.5f),
+					concrete, dirt, grass, maskros);
 	}
 
-	// Create player and enemies
-	createThing(terrain, grass, 0, 0, 0, THING_TERRAIN, IdentityMatrix());
-	createThing(car, concrete, 0, 0, 0, THING_ENEMY, Ry(M_PI / 2.0f));
-	createThing(car, maskros, 50, 50, 50, THING_ENEMY, Ry(M_PI / 2.0f));
-	createThing(car, maskros, 60, 50, 50, THING_ENEMY, Ry(M_PI / 2.0f));
-	createThing(car, maskros, 50, 50, 90, THING_ENEMY, Ry(M_PI / 2.0f));
-	createThing(octagon, maskros, 80, 50, 50, THING_ENEMY, IdentityMatrix());
-	createThing(octagon, maskros, 80, 50, 80, THING_ENEMY, IdentityMatrix());
-	createThing(car, maskros, 50, 80, 50, THING_ENEMY, Ry(M_PI / 2.0f));
-	player = createThing(car, concrete, 0, 0, 0, THING_PLAYER, Ry(M_PI / 2.0f));
+	// Create enemies
+	for (int i = 0; i < NUM_ENEMIES; i++) {
+		const float DEV = 10.0f;
+		float x = waypoints[0].x + random_range(-DEV, DEV);
+		float z = waypoints[0].z + random_range(-DEV, DEV);
+		createThing(x, waypoints[0].y + 50.0f, z,
+				THING_ENEMY,
+				car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
+				concrete, dirt, grass, maskros);
+	}
+
+	player = createThing(waypoints[0].x, waypoints[0].y + 50.0f, waypoints[0].z,
+			THING_PLAYER,
+			car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
+			dirt, concrete, grass, maskros);
+
 
 	// Setup light sources
 	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), lightCount, lightSourcesDirPosArr);

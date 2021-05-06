@@ -10,6 +10,8 @@ out vec4 outColor;
 uniform sampler2D tex0;
 uniform sampler2D tex1;
 uniform sampler2D tex2;
+uniform sampler2D tex3;
+
 uniform mat4 camMatrix;
 uniform mat4 mdlMatrix;
 
@@ -17,9 +19,20 @@ uniform float time;
 uniform bool fogEnable;
 
 // Lighting
-uniform vec3 lightSourcesDirPosArr[2];
-uniform vec3 lightSourcesColorArr[2];
-uniform bool isDirectional[2];
+#define NUM_LIGHTS 2
+uniform vec3 lightSourcesDirPosArr[NUM_LIGHTS];
+uniform vec3 lightSourcesColorArr[NUM_LIGHTS];
+uniform bool isDirectional[NUM_LIGHTS];
+
+// Road
+#define NUM_WAYPOINTS 50
+#define ROAD_WIDTH 25.0
+uniform vec3 waypoints[NUM_WAYPOINTS];
+
+#define THING_TERRAIN 0
+#define THING_ENEMY 1
+#define THING_PLAYER 2
+uniform int thingType;
 
 void main(void)
 {
@@ -35,7 +48,7 @@ void main(void)
 	vec3 ambientLight = reflectivity * vec3(0.3);
 	vec3 diffuseLight = vec3(0.0);
 	vec3 specularLight = vec3(0.0);
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < NUM_LIGHTS; i++) {
 		// Direction or position of the light in view coordinates
 		vec3 lightDirPos = (camMatrix * mdlMatrix * vec4(lightSourcesDirPosArr[i], 1.0)).xyz;
 
@@ -57,17 +70,33 @@ void main(void)
 	}
 	vec4 totalLight = vec4(ambientLight + diffuseLight + specularLight, 1.0);
 
-	/*
-	if (worldPos.y > 70.0 + 1.0 * sin(worldPos.x + worldPos.z)) {
-		outColor = texture(tex1, texCoord) * totalLight;
-	} else if (worldPos.y < 5.0 + 0.7 * sin(sin(time) * 0.5 * time + worldPos.x + worldPos.z)) {
-		// outColor = texture(tex2, texCoord) * totalLight;
-		outColor = vec4(0.2, 0.2, 0.9, 1.0) * texture(tex2, texCoord) * totalLight;
-	} else {
-		outColor = texture(tex0, texCoord) * totalLight;
+	// Regular texture
+	vec4 color = texture(tex0, texCoord);
+
+	// Multitexturing for terrain (i.e. roads)
+	if (thingType == THING_TERRAIN) {
+		for (int i = 0; i < NUM_WAYPOINTS; i++) {
+			// Line segment from waypoints[i-1] to waypoints[i]
+			vec3 v;
+			if (i == 0) {
+				v = waypoints[i] - waypoints[NUM_WAYPOINTS-1];
+			} else {
+				v = waypoints[i] - waypoints[i-1];
+			}
+			vec3 u = worldPos - waypoints[i];
+			vec3 proj = dot(u, v) / dot(v, v) * v;
+			float d = dot(proj, v);
+			if (-dot(v, v) < d && d < 0.0 && length(u - proj) < ROAD_WIDTH) {
+				color = texture(tex1, texCoord);
+				break;
+			}
+			if (length(u) < ROAD_WIDTH) {
+				color = texture(tex1, texCoord);
+				break;
+			}
+		}
 	}
-	*/
-	outColor = texture(tex0, texCoord) * totalLight;
+	outColor = color * totalLight;
 
 	const float fogDistance = 100.0;
 	if (fogEnable && length(viewPos) > fogDistance) {
