@@ -256,6 +256,7 @@ Model* terrain_generate_model()
 #define THING_TERRAIN 0
 #define THING_ENEMY 1
 #define THING_PLAYER 2
+#define THING_OBSTACLE 3
 
 #define GRAVITY_ACCEL 30
 
@@ -282,10 +283,11 @@ Model* terrain_generate_model()
 #define MAX_THINGS 1000
 #define MAX_THING_TEXTURES 4
 #define NUM_TERRAIN_OBJS 40
-#define NUM_ENEMIES 50
-#define NUM_WAYPOINTS 50
+#define NUM_ENEMIES 5
+#define NUM_WAYPOINTS 100
 
 #define ROAD_WIDTH 25.0f
+#define WAYPOINT_DETECT_RADIUS 40.0f
 
 struct thing {
 	vec3 pos;
@@ -298,6 +300,7 @@ struct thing {
 	Model *model;
 	GLuint textures[MAX_THING_TEXTURES];
     mat4 baseMdlMatrix;
+	float radius;
 };
 
 // Global variables //
@@ -306,7 +309,7 @@ int num_things = 0;
 struct thing things[MAX_THINGS];
 struct thing *player;
 struct thing *terrain;
-int camera_mode = CAMERA_ABOVE_CAR;
+int camera_mode = CAMERA_BEHIND_FAR;
 GLuint program;
 vec3 waypoints[NUM_WAYPOINTS];
 int paused = 1;
@@ -315,7 +318,7 @@ void drawEverything() {
 	for (int i = 0; i < num_things; i++) {
 		struct thing *t = &things[i];
 		mat4 mdlMatrix;
-		if (t->type == THING_TERRAIN) {
+		if (t->type == THING_TERRAIN || t->type == THING_OBSTACLE) {
 			mdlMatrix = Mult(
                 Mult(T(t->pos.x, t->pos.y, t->pos.z),
                      Ry(-t->angle_y)),
@@ -352,6 +355,7 @@ void drawEverything() {
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, t->textures[3]);
 		glUniform1i(glGetUniformLocation(program, "thingType"), t->type);
+		glUniform1i(glGetUniformLocation(program, "hl_wp"), player->nextWaypoint);
 		DrawModel(t->model, program, "inPosition", "inNormal", "inTexCoord");
 	}
 }
@@ -382,7 +386,7 @@ void updateEverything(float delta_t) {
 	for (int i = 0; i < num_things; i++) {
 		struct thing *t = &things[i];
 		// Do gravity
-		if (t->type != THING_TERRAIN) {
+		if (t->type != THING_TERRAIN && t->type != THING_OBSTACLE) {
 			float ground_y = terrain_height_at(t->pos.x, t->pos.z);
 			if (t->pos.y > ground_y) {
 				// Falling
@@ -395,8 +399,8 @@ void updateEverything(float delta_t) {
 				t->air_height = 0.0f;
 			}
 		}
-		// Update enemies
-		if (t->type == THING_ENEMY) {
+		// Update enemies driving if on ground
+		if (t->type == THING_ENEMY) { // && t->air_height > 0.0f) {
 			// Turn towards next waypoint
 			vec3 v_to_wp = VectorSub(waypoints[t->nextWaypoint], t->pos);
 			float angle_to_wp = atan2(v_to_wp.z, v_to_wp.x);
@@ -423,8 +427,8 @@ void updateEverything(float delta_t) {
 				t->nextWaypoint = (t->nextWaypoint + 1) % NUM_WAYPOINTS;
 			}
 		}
-		// Update the player
-		if (t->type == THING_PLAYER) {
+		// Update the player driving if on ground
+		if (t->type == THING_PLAYER) { // && t->air_height > 0.0f) {
 			int forward = glutKeyIsDown('w') || glutKeyIsDown(GLUT_KEY_UP);
 			int left = glutKeyIsDown('a') || glutKeyIsDown(GLUT_KEY_LEFT);
 			int right = glutKeyIsDown('d') || glutKeyIsDown(GLUT_KEY_RIGHT);
@@ -447,12 +451,18 @@ void updateEverything(float delta_t) {
                                               delta_t * CAR_BRAKE_ACCEL));
             }
 			const float speed = norm2(t->vel.x, t->vel.z);
+			int goingForward = DotProduct(t->vel, angle_y_vec(t->angle_y)) > 0.0f;
 			// Turning left and right
-			if (left && speed > CAR_MIN_TURN_SPEED) {
+			if (((goingForward && left) || (!goingForward && right)) && speed > CAR_MIN_TURN_SPEED) {
 				t->angle_y -= delta_t * CAR_TURN_SPEED;
 			}
-			if (right && speed > CAR_MIN_TURN_SPEED) {
+			if (((goingForward && right) || (!goingForward && left)) && speed > CAR_MIN_TURN_SPEED) {
 				t->angle_y += delta_t * CAR_TURN_SPEED;
+			}
+			// Record new waypoint if close enough
+			vec3 v_to_wp = VectorSub(waypoints[t->nextWaypoint], t->pos);
+			if (Norm(v_to_wp) < WAYPOINT_DETECT_RADIUS) {
+				t->nextWaypoint = (t->nextWaypoint + 5) % NUM_WAYPOINTS;
 			}
 		}
 		if (t->type == THING_ENEMY || t->type == THING_PLAYER) {
@@ -468,7 +478,20 @@ void updateEverything(float delta_t) {
 			}
 			// Do friction and air drag
 			t->vel = VectorAdd(t->vel, ScalarMult(t->vel, -air_drag));
+
 			// Do physics
+			for (int j = 0; j < num_things; j++) {
+				if (i == j) continue;
+				struct thing *s = &things[j];
+				vec3 offset = VectorSub(s->pos, t->pos);
+				if (Norm(offset) < t->radius + s->radius) {
+					// Thing t hits thing s, so project t->vel on orthogonal complement of offset
+					// But we don't want to change the velocity in the y-axis
+					float y_vel = t->vel.y;
+					t->vel = VectorSub(t->vel, ScalarMult(offset, fmax(0.0f, DotProduct(t->vel, offset)) / DotProduct(offset, offset)));
+					t->vel.y = y_vel;
+				}
+			}
 			t->pos = VectorAdd(t->pos, ScalarMult(t->vel, delta_t));
 		}
 	}
@@ -477,7 +500,8 @@ void updateEverything(float delta_t) {
 struct thing *createThing(float x, float y, float z,
 						  int type,
                           Model *model, mat4 baseMdlMatrix,
-						  GLuint tex0, GLuint tex1, GLuint tex2, GLuint tex3) {
+						  GLuint tex0, GLuint tex1, GLuint tex2, GLuint tex3,
+						  float radius) {
 	struct thing *t = &things[num_things++];
 	t->model = model;
 	t->textures[0] = tex0;
@@ -488,6 +512,7 @@ struct thing *createThing(float x, float y, float z,
 	t->vel = SetVector(0, 0, 0);
 	t->type = type;
     t->baseMdlMatrix = baseMdlMatrix;
+    t->radius = radius;
 	t->nextWaypoint = 0;
 	return t;
 }
@@ -588,7 +613,11 @@ void init(void)
     Model *fence = LoadModel("res/old_fence.obj");
 
 	// Create terrain (ground)
-	terrain = createThing(0, 0, 0, THING_TERRAIN, terrainMdl, IdentityMatrix(), grass, dirt, fencetex, maskros);
+	terrain = createThing(0, 0, 0,
+			THING_TERRAIN,
+			terrainMdl, IdentityMatrix(),
+			grass, dirt, fencetex, maskros,
+			0.0f);
 
 	// Create waypoints
 	float r = TERRAIN_WIDTH / 2.0f;
@@ -614,7 +643,6 @@ void init(void)
 	glUniform3fv(glGetUniformLocation(program, "waypoints"), NUM_WAYPOINTS, (GLfloat *) waypoints);
 	printError("upload waypoints");
 
-
 	// Create static terrain (trees and rocks)
 	for (int i = 0; i < NUM_TERRAIN_OBJS; i++) {
 		// Pick a random waypoint
@@ -624,44 +652,59 @@ void init(void)
 		float x = wp.x + RADIUS * cos(angle);
 		float z = wp.z + RADIUS * sin(angle);
 		Model *model;
+		mat4 modelMatr;
+		float radius;
 		switch (rand() % 5) {
 			case 0:
 				model = tree;
+				radius = 4.0f;
+				modelMatr = S(0.5f, 0.5f, 0.5f);
 				break;
 			case 1:
 				model = rock;
+				radius = 10.0f;
+				modelMatr = S(0.3f, 0.3f, 0.3f);
 				break;
 			case 2:
 				model = oildrum;
+				radius = 8.0f;
+				modelMatr = S(0.5f, 0.5f, 0.5f);
 				break;
 			case 3:
 				model = tires;
+				radius = 8.0f;
+				modelMatr = Mult(S(0.5f, 0.5f, 0.5f), Rz(M_PI / 2.0f));
 				break;
             case 4:
                 model = fence;
+				radius = 4.0f;
+				modelMatr = S(0.1f, 0.1f, 0.1f);
                 break;
 		}
 		createThing(x, terrain_height_at(x, z), z,
-                    THING_TERRAIN,
-					model, S(0.5f, 0.5f, 0.5f),
-					fencetex, dirt, grass, maskros);
+                    THING_OBSTACLE,
+					model, modelMatr,
+					fencetex, dirt, grass, maskros,
+					radius);
 	}
 
 	// Create enemies
 	for (int i = 0; i < NUM_ENEMIES; i++) {
-		const float DEV = 10.0f;
+		const float DEV = 100.0f;
 		float x = waypoints[0].x + random_range(-DEV, DEV);
 		float z = waypoints[0].z + random_range(-DEV, DEV);
-		createThing(x, waypoints[0].y + 50.0f, z,
+		createThing(x, waypoints[0].y + 5.0f, z,
 				THING_ENEMY,
 				car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
-				fencetex, dirt, grass, maskros);
+				fencetex, dirt, grass, maskros,
+				10.0f);
 	}
 
-	player = createThing(waypoints[0].x, waypoints[0].y + 50.0f, waypoints[0].z,
+	player = createThing(waypoints[0].x, waypoints[0].y + 5.0f, waypoints[0].z,
 			THING_PLAYER,
 			car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
-			dirt, fencetex, grass, maskros);
+			dirt, fencetex, grass, maskros,
+			10.0f);
 
 
 	// Setup light sources

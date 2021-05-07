@@ -27,7 +27,9 @@ uniform bool isDirectional[NUM_LIGHTS];
 // Road
 #define NUM_WAYPOINTS 50
 #define ROAD_WIDTH 25.0
+#define WAYPOINT_DETECT_RADIUS 40.0
 uniform vec3 waypoints[NUM_WAYPOINTS];
+uniform int hl_wp;
 
 #define THING_TERRAIN 0
 #define THING_ENEMY 1
@@ -75,24 +77,31 @@ void main(void)
 
 	// Multitexturing for terrain (i.e. roads)
 	if (thingType == THING_TERRAIN) {
-		for (int i = 0; i < NUM_WAYPOINTS; i++) {
-			// Line segment from waypoints[i-1] to waypoints[i]
-			vec3 v;
-			if (i == 0) {
-				v = waypoints[i] - waypoints[NUM_WAYPOINTS-1];
-			} else {
-				v = waypoints[i] - waypoints[i-1];
-			}
-			vec3 u = worldPos - waypoints[i];
-			vec3 proj = dot(u, v) / dot(v, v) * v;
-			float d = dot(proj, v);
-			if (-dot(v, v) < d && d < 0.0 && length(u - proj) < ROAD_WIDTH) {
-				color = texture(tex1, texCoord);
-				break;
-			}
-			if (length(u) < ROAD_WIDTH) {
-				color = texture(tex1, texCoord);
-				break;
+		// Highlight waypoints
+		vec3 offset = worldPos - waypoints[hl_wp];
+		if (length(offset) < WAYPOINT_DETECT_RADIUS && length(offset) > WAYPOINT_DETECT_RADIUS * 0.9) {
+			color = texture(tex2, texCoord);
+		} else {
+			// Draw the road
+			for (int i = 0; i < NUM_WAYPOINTS; i++) {
+				// Line segment from waypoints[i-1] to waypoints[i]
+				vec3 v;
+				if (i == 0) {
+					v = waypoints[i] - waypoints[NUM_WAYPOINTS-1];
+				} else {
+					v = waypoints[i] - waypoints[i-1];
+				}
+				vec3 u = worldPos - waypoints[i];
+				vec3 proj = dot(u, v) / dot(v, v) * v;
+				float d = dot(proj, v);
+				if (-dot(v, v) < d && d < 0.0 && length(u - proj) < ROAD_WIDTH) {
+					color = texture(tex1, texCoord);
+					break;
+				}
+				if (length(u) < ROAD_WIDTH) {
+					color = texture(tex1, texCoord);
+					break;
+				}
 			}
 		}
 	}
