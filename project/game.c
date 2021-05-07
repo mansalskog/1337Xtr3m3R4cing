@@ -247,7 +247,59 @@ Model* terrain_generate_model()
 			indexArray,
 			vertexCount,
 			triangleCount*3);
+	return model;
+}
 
+vec2 SetVector2(float x, float y) {
+	vec2 v = {x, y};
+	return v;
+}
+
+Model *generate_particle_model() {
+	const int vertexCount = 6;
+	const int triangleCount = 2;
+
+	vec3 *vertexArray = malloc(sizeof(vec3) * vertexCount);
+	vec3 *normalArray = malloc(sizeof(vec3) * vertexCount);
+	vec2 *texCoordArray = malloc(sizeof(vec2) * vertexCount);
+	GLuint *indexArray = malloc(sizeof(GLuint) * triangleCount * 3);
+
+	vertexArray[0] = SetVector(-1, -1, 0);
+	vertexArray[1] = SetVector( 1, -1, 0);
+	vertexArray[2] = SetVector(-1,  1, 0);
+	vertexArray[3] = SetVector( 1, -1, 0);
+	vertexArray[4] = SetVector( 1,  1, 0);
+	vertexArray[5] = SetVector(-1,  1, 0);
+
+	normalArray[0] = SetVector(0, 0, -1);
+	normalArray[1] = SetVector(0, 0, -1);
+	normalArray[2] = SetVector(0, 0, -1);
+	normalArray[3] = SetVector(0, 0, -1);
+	normalArray[4] = SetVector(0, 0, -1);
+	normalArray[5] = SetVector(0, 0, -1);
+
+	texCoordArray[0] = SetVector2(-1, -1);
+	texCoordArray[1] = SetVector2( 1, -1);
+	texCoordArray[2] = SetVector2(-1,  1);
+	texCoordArray[3] = SetVector2( 1, -1);
+	texCoordArray[4] = SetVector2( 1,  1);
+	texCoordArray[5] = SetVector2(-1,  1);
+
+	indexArray[0] = 0;
+	indexArray[1] = 1;
+	indexArray[2] = 2;
+	indexArray[3] = 3;
+	indexArray[4] = 4;
+	indexArray[5] = 5;
+
+	Model* model = LoadDataToModel(
+			vertexArray,
+			normalArray,
+			texCoordArray,
+			NULL,
+			indexArray,
+			vertexCount,
+			triangleCount*3);
 	return model;
 }
 
@@ -280,6 +332,7 @@ Model* terrain_generate_model()
 #define CAMERA_ABOVE_MAP 4
 #define CAMERA_MODE_LAST 4
 
+#define MAX_PARTICLES 1000
 #define MAX_THINGS 1000
 #define MAX_THING_TEXTURES 4
 #define NUM_TERRAIN_OBJS 40
@@ -303,16 +356,27 @@ struct thing {
 	float radius;
 };
 
+struct particle {
+	vec3 pos;
+	vec3 vel;
+	GLuint texture;
+	float lifetime;
+};
+
 // Global variables //
 
 int num_things = 0;
 struct thing things[MAX_THINGS];
 struct thing *player;
 struct thing *terrain;
+int idx_particle = 0;
+struct particle particles[MAX_PARTICLES] = {0};
+Model *particle_model;
 int camera_mode = CAMERA_BEHIND_FAR;
 GLuint program;
 vec3 waypoints[NUM_WAYPOINTS];
 int paused = 1;
+GLuint smokeTex;
 
 void drawEverything() {
 	for (int i = 0; i < num_things; i++) {
@@ -357,6 +421,38 @@ void drawEverything() {
 		glUniform1i(glGetUniformLocation(program, "thingType"), t->type);
 		glUniform1i(glGetUniformLocation(program, "hl_wp"), player->nextWaypoint);
 		DrawModel(t->model, program, "inPosition", "inNormal", "inTexCoord");
+	}
+}
+
+void drawParticles() {
+	glUniform1i(glGetUniformLocation(program, "isParticle"), 1);
+	for (int i = 0; i < MAX_PARTICLES; i++) {
+		struct particle *p = &particles[i];
+		mat4 mdlMatrix = Mult(T(p->pos.x, p->pos.y, p->pos.z), S(0.5f, 0.5f, 0.5f));
+		glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
+		if (p->lifetime > 0.0f) {
+			DrawModel(particle_model, program, "inPosition", "inNormal", "inTexCoord");
+		}
+	}
+	glUniform1i(glGetUniformLocation(program, "isParticle"), 0);
+}
+
+void addParticle(vec3 pos, vec3 vel, float lifetime, GLuint texture) {
+	struct particle *p = &particles[idx_particle];
+	idx_particle = (idx_particle + 1) % MAX_PARTICLES;
+	p->pos = pos;
+	p->vel = vel;
+	p->lifetime = lifetime;
+	p->texture = texture;
+}
+
+void updateParticles(float delta) {
+	for (int i = 0; i < MAX_PARTICLES; i++) {
+		struct particle *p = &particles[i];
+		if (p->lifetime > 0.0f) {
+			p->lifetime -= delta;
+			p->pos = VectorAdd(p->pos, ScalarMult(p->vel, delta));
+		}
 	}
 }
 
@@ -493,6 +589,19 @@ void updateEverything(float delta_t) {
 				}
 			}
 			t->pos = VectorAdd(t->pos, ScalarMult(t->vel, delta_t));
+
+			// Create smoke from tires
+			if (speed > CAR_MIN_TURN_SPEED) {
+				for (int i = 0; i < 50; i++) {
+					addParticle(
+							VectorAdd(
+								VectorAdd(t->pos, ScalarMult(angle_y_vec(t->angle_y), -3.0f)),
+								SetVector(random_range(-2, 2), random_range(-2, 2), random_range(-2, 2))),
+							VectorAdd(ScalarMult(angle_y_vec(t->angle_y), 3.0f), SetVector(0.0f, 5.0f, 0.0f)),
+							2.0f,
+							smokeTex);
+				}
+			}
 		}
 	}
 }
@@ -598,9 +707,15 @@ void init(void)
 	LoadTGATextureSimple("res/grass.tga", &grass);
     LoadTGATextureSimple("res/old_fence_texture.tga", &fencetex);
 
+	LoadTGATextureSimple("res/conc.tga", &smokeTex);
+
 	// Generate terrain model
 	Model *terrainMdl = terrain_generate_model();
 	printError("init terrain");
+
+	// Generate particle model
+	particle_model = generate_particle_model();
+	printError("init particle model");
 
 	// Load models
 	Model *sphere = LoadModel("res/groundsphere.obj");
@@ -672,8 +787,8 @@ void init(void)
 				break;
 			case 3:
 				model = tires;
-				radius = 8.0f;
-				modelMatr = Mult(S(0.5f, 0.5f, 0.5f), Rz(M_PI / 2.0f));
+				radius = 2.0f;
+				modelMatr = Mult(T(0.0f, 0.2f, 0.0f), Mult(S(0.1f, 0.1f, 0.1f), Rx(M_PI / 2.0f)));
 				break;
             case 4:
                 model = fence;
@@ -737,6 +852,9 @@ void display(void)
 	drawEverything();
 	printError("drawEverything");
 
+	drawParticles();
+	printError("drawParticles");
+
 	glutSwapBuffers();
 }
 
@@ -748,6 +866,7 @@ void timer(int i)
     GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
 	if (!paused) {
 		updateEverything(t - prev_t);
+		updateParticles(t - prev_t);
 	}
 	prev_t = t;
 	glutPostRedisplay();

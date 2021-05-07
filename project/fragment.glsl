@@ -36,6 +36,8 @@ uniform int hl_wp;
 #define THING_PLAYER 2
 uniform int thingType;
 
+uniform bool isParticle;
+
 void main(void)
 {
 	// Light model constants
@@ -113,5 +115,9 @@ void main(void)
 		float t = (length(viewPos) - fogDistance) / 50.0;
 		t = smoothstep(0.0, 1.0, t);
 		// outColor = mix(outColor, vec4(1.0, 1.0, 1.0, 0.0), t);
+	}
+
+	if (isParticle) {
+		outColor = vec4(0.9, 0.9, 0.0, 1.0);
 	}
 }
