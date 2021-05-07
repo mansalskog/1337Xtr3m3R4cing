@@ -76,7 +76,7 @@ const float TERRAIN_DEPTH_FACTOR = 200.0f;
 const float TERRAIN_HEIGHT_FACTOR = 15.0f;
 const int TERRAIN_WIDTH = 1000;
 const int TERRAIN_DEPTH = 1000;
-const float TERRAIN_TRIANGLE_SIZE = 2.0f; 
+const float TERRAIN_TRIANGLE_SIZE = 2.0f;
 
 vec2 terrain_gradient(int x0, int z0) {
 	unsigned next_seed = rand();
@@ -566,11 +566,12 @@ void init(void)
 	glUniform1i(glGetUniformLocation(program, "tex3"), 3); // Texture unit 3
 
 	// Load textures
-	GLuint maskros, concrete, dirt, grass;
+	GLuint maskros, concrete, dirt, grass, fencetex;
 	LoadTGATextureSimple("res/maskros512.tga", &maskros);
 	LoadTGATextureSimple("res/conc.tga", &concrete);
 	LoadTGATextureSimple("res/dirt.tga", &dirt);
 	LoadTGATextureSimple("res/grass.tga", &grass);
+    LoadTGATextureSimple("res/old_fence_texture.tga", &fencetex);
 
 	// Generate terrain model
 	Model *terrainMdl = terrain_generate_model();
@@ -584,9 +585,10 @@ void init(void)
 	Model *rock = LoadModel("res/Rock_1.obj");
 	Model *oildrum = LoadModel("res/barrel.obj.obj");
 	Model *tires = LoadModel("res/wheel.obj");
+    Model *fence = LoadModel("res/old_fence.obj");
 
 	// Create terrain (ground)
-	terrain = createThing(0, 0, 0, THING_TERRAIN, terrainMdl, IdentityMatrix(), grass, dirt, concrete, maskros);
+	terrain = createThing(0, 0, 0, THING_TERRAIN, terrainMdl, IdentityMatrix(), grass, dirt, fencetex, maskros);
 
 	// Create waypoints
 	float r = TERRAIN_WIDTH / 2.0f;
@@ -622,7 +624,7 @@ void init(void)
 		float x = wp.x + RADIUS * cos(angle);
 		float z = wp.z + RADIUS * sin(angle);
 		Model *model;
-		switch (rand() % 4) {
+		switch (rand() % 5) {
 			case 0:
 				model = tree;
 				break;
@@ -635,11 +637,14 @@ void init(void)
 			case 3:
 				model = tires;
 				break;
+            case 4:
+                model = fence;
+                break;
 		}
 		createThing(x, terrain_height_at(x, z), z,
                     THING_TERRAIN,
 					model, S(0.5f, 0.5f, 0.5f),
-					concrete, dirt, grass, maskros);
+					fencetex, dirt, grass, maskros);
 	}
 
 	// Create enemies
@@ -650,13 +655,13 @@ void init(void)
 		createThing(x, waypoints[0].y + 50.0f, z,
 				THING_ENEMY,
 				car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
-				concrete, dirt, grass, maskros);
+				fencetex, dirt, grass, maskros);
 	}
 
 	player = createThing(waypoints[0].x, waypoints[0].y + 50.0f, waypoints[0].z,
 			THING_PLAYER,
 			car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
-			dirt, concrete, grass, maskros);
+			dirt, fencetex, grass, maskros);
 
 
 	// Setup light sources
