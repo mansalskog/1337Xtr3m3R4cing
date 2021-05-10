@@ -17,19 +17,6 @@ const float TILE_WIDTH_X = 3.0;
 const float TILE_WIDTH_Z = 3.0;
 const float TILE_HEIGHT_Y = 0.5;
 
-int lightCount = 2;
-GLfloat lightSourcesDirPosArr[] = {
-	-1.0, -1.0, -1.0,
-	10.0, 10.0, 10.0,
-};
-GLfloat lightSourcesColorArr[] = {
-	1.0, 1.0, 1.0,
-	1.0, 1.0, 1.0,
-};
-int isDirectional[] = {1, 0};
-
-mat4 projectionMatrix;
-
 ///// Utility functions /////
 
 vec3 normalForTriangle(
@@ -332,12 +319,13 @@ Model *generate_particle_model() {
 #define CAMERA_ABOVE_MAP 4
 #define CAMERA_MODE_LAST 4
 
-#define MAX_PARTICLES 1000
+// Max particles must be at least NUM_ENEMIES * particle lifetime * particles per car = 5 * 4 * 50
+#define MAX_PARTICLES 10000
 #define MAX_THINGS 1000
 #define MAX_THING_TEXTURES 4
 #define NUM_TERRAIN_OBJS 40
 #define NUM_ENEMIES 5
-#define NUM_WAYPOINTS 100
+#define NUM_WAYPOINTS 20
 
 #define ROAD_WIDTH 25.0f
 #define WAYPOINT_DETECT_RADIUS 40.0f
@@ -359,7 +347,8 @@ struct thing {
 struct particle {
 	vec3 pos;
 	vec3 vel;
-	GLuint texture;
+	vec3 color;
+	float size;
 	float lifetime;
 };
 
@@ -376,7 +365,19 @@ int camera_mode = CAMERA_BEHIND_FAR;
 GLuint program;
 vec3 waypoints[NUM_WAYPOINTS];
 int paused = 1;
-GLuint smokeTex;
+
+int lightCount = 2;
+GLfloat lightSourcesDirPosArr[] = {
+	-1.0, -1.0, -1.0,
+	10.0, 10.0, 10.0,
+};
+GLfloat lightSourcesColorArr[] = {
+	1.0, 1.0, 1.0,
+	1.0, 1.0, 1.0,
+};
+int isDirectional[] = {1, 0};
+
+mat4 projectionMatrix;
 
 void drawEverything() {
 	for (int i = 0; i < num_things; i++) {
@@ -428,22 +429,26 @@ void drawParticles() {
 	glUniform1i(glGetUniformLocation(program, "isParticle"), 1);
 	for (int i = 0; i < MAX_PARTICLES; i++) {
 		struct particle *p = &particles[i];
-		mat4 mdlMatrix = Mult(T(p->pos.x, p->pos.y, p->pos.z), S(0.5f, 0.5f, 0.5f));
-		glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
 		if (p->lifetime > 0.0f) {
+			mat4 mdlMatrix = T(p->pos.x, p->pos.y, p->pos.z);
+			glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
+			glUniform1f(glGetUniformLocation(program, "particleLifetime"), p->lifetime);
+			glUniform1f(glGetUniformLocation(program, "particleSize"), p->size);
+			glUniform3f(glGetUniformLocation(program, "particleColor"), p->color.x, p->color.y, p->color.z);
 			DrawModel(particle_model, program, "inPosition", "inNormal", "inTexCoord");
 		}
 	}
 	glUniform1i(glGetUniformLocation(program, "isParticle"), 0);
 }
 
-void addParticle(vec3 pos, vec3 vel, float lifetime, GLuint texture) {
+void addParticle(vec3 pos, vec3 vel, float lifetime, vec3 color, float size) {
 	struct particle *p = &particles[idx_particle];
 	idx_particle = (idx_particle + 1) % MAX_PARTICLES;
 	p->pos = pos;
 	p->vel = vel;
 	p->lifetime = lifetime;
-	p->texture = texture;
+	p->color = color;
+	p->size = size;
 }
 
 void updateParticles(float delta) {
@@ -558,7 +563,21 @@ void updateEverything(float delta_t) {
 			// Record new waypoint if close enough
 			vec3 v_to_wp = VectorSub(waypoints[t->nextWaypoint], t->pos);
 			if (Norm(v_to_wp) < WAYPOINT_DETECT_RADIUS) {
-				t->nextWaypoint = (t->nextWaypoint + 5) % NUM_WAYPOINTS;
+				// Create particles when waypoint is reached
+				for (int i = 0; i < 500; i++) {
+					const float RADIUS = 40.0f;
+					float angle = random_range(0, 2.0f * M_PI);
+					vec3 pos = VectorAdd(
+							waypoints[player->nextWaypoint],
+							ScalarMult(angle_y_vec(angle), RADIUS));
+					addParticle(pos,
+							SetVector(0.0f, random_range(8.0f, 12.0f), 0.0f),
+							random_range(1.8f, 2.2f),
+							SetVector(0.83f, 0.67f, 0.22f),
+							1.0f);
+				}
+
+				t->nextWaypoint = (t->nextWaypoint + 1) % NUM_WAYPOINTS;
 			}
 		}
 		if (t->type == THING_ENEMY || t->type == THING_PLAYER) {
@@ -598,8 +617,9 @@ void updateEverything(float delta_t) {
 								VectorAdd(t->pos, ScalarMult(angle_y_vec(t->angle_y), -3.0f)),
 								SetVector(random_range(-2, 2), random_range(-2, 2), random_range(-2, 2))),
 							VectorAdd(ScalarMult(angle_y_vec(t->angle_y), 3.0f), SetVector(0.0f, 5.0f, 0.0f)),
-							2.0f,
-							smokeTex);
+							random_range(0.8f, 1.2f),
+							SetVector(0.11f, 0.11f, 0.11f),
+							random_range(0.35f, 0.40f));
 				}
 			}
 		}
@@ -707,8 +727,6 @@ void init(void)
 	LoadTGATextureSimple("res/grass.tga", &grass);
     LoadTGATextureSimple("res/old_fence_texture.tga", &fencetex);
 
-	LoadTGATextureSimple("res/conc.tga", &smokeTex);
-
 	// Generate terrain model
 	Model *terrainMdl = terrain_generate_model();
 	printError("init terrain");
@@ -736,21 +754,61 @@ void init(void)
 
 	// Create waypoints
 	float r = TERRAIN_WIDTH / 2.0f;
+	float min_wp_r = r;
+	float max_wp_r = r;
 	for (int i = 0; i < NUM_WAYPOINTS; i++) {
 		const float VAR = 0.15f;
 		float dr;
-		if (r < TERRAIN_WIDTH / 3.0f) {
+		if (r < TERRAIN_WIDTH / 2.0f) {
 			dr = random_range(0.0f, VAR * r);
-		} else if (r > TERRAIN_WIDTH / 1.5f) {
+		} else if (r > TERRAIN_WIDTH / 1.0f) {
 			dr = random_range(-VAR * r, 0.0f);
 		} else {
 			dr = random_range(-VAR * r, VAR * r);
 		}
 		r += dr;
-		float angle = (M_PI * 2.0f * i) / (float) NUM_WAYPOINTS;
+		// Slightly less than 2 * M_PI
+		float angle = (6.0f * i) / (float) NUM_WAYPOINTS;
 		float x = r * cos(angle);
 		float z = r * sin(angle);
 		waypoints[i] = SetVector(x, terrain_height_at(x, z), z);
+		min_wp_r = fmin(r, min_wp_r);
+		max_wp_r = fmax(r, max_wp_r);
+	}
+
+	// Create fence around road
+	for (int i = 0; i < NUM_WAYPOINTS; i++) {
+		vec3 lastPoint;
+		if (i == 0) {
+			lastPoint = waypoints[NUM_WAYPOINTS-1];
+		} else {
+			lastPoint = waypoints[i-1];
+		}
+		vec3 v = VectorSub(waypoints[i], lastPoint);
+		float l = Norm(v);
+		v = Normalize(v);
+		vec3 u = Normalize(CrossProduct(v, terrain_normal_at(v.x, v.z)));
+		float t = 0.0f;
+		const float FENCE_WIDTH = 7.0f;
+		while (t + FENCE_WIDTH < l) {
+			vec3 pos = VectorAdd(lastPoint, VectorAdd(ScalarMult(v, t), ScalarMult(u, 2.0f * ROAD_WIDTH)));
+			if (!isOnRoad(pos)) {
+				mat4 modelMat = Mult(Ry(M_PI / 2.0f + atan2(v.x, v.z)), S(0.1f, 0.1f, 0.1f));
+				float radius = 4.0f;
+				createThing(pos.x, terrain_height_at(pos.x, pos.z), pos.z,
+							THING_OBSTACLE,
+							fence, modelMat,
+							fencetex, dirt, grass, maskros,
+							radius);
+				pos = VectorAdd(lastPoint, VectorAdd(ScalarMult(v, t), ScalarMult(u, -2.0f * ROAD_WIDTH)));
+				createThing(pos.x, terrain_height_at(pos.x, pos.z), pos.z,
+							THING_OBSTACLE,
+							fence, modelMat,
+							fencetex, dirt, grass, maskros,
+							radius);
+			}
+			t += FENCE_WIDTH;
+		}
 	}
 
 	// Upload waypoints to GPU
@@ -769,7 +827,7 @@ void init(void)
 		Model *model;
 		mat4 modelMatr;
 		float radius;
-		switch (rand() % 5) {
+		switch (rand() % 4) {
 			case 0:
 				model = tree;
 				radius = 4.0f;
@@ -790,16 +848,11 @@ void init(void)
 				radius = 2.0f;
 				modelMatr = Mult(T(0.0f, 0.2f, 0.0f), Mult(S(0.1f, 0.1f, 0.1f), Rx(M_PI / 2.0f)));
 				break;
-            case 4:
-                model = fence;
-				radius = 4.0f;
-				modelMatr = S(0.1f, 0.1f, 0.1f);
-                break;
 		}
 		createThing(x, terrain_height_at(x, z), z,
                     THING_OBSTACLE,
 					model, modelMatr,
-					fencetex, dirt, grass, maskros,
+					concrete, dirt, grass, maskros,
 					radius);
 	}
 
@@ -812,20 +865,14 @@ void init(void)
 				THING_ENEMY,
 				car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
 				fencetex, dirt, grass, maskros,
-				10.0f);
+				5.0f);
 	}
 
 	player = createThing(waypoints[0].x, waypoints[0].y + 5.0f, waypoints[0].z,
 			THING_PLAYER,
 			car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
 			dirt, fencetex, grass, maskros,
-			10.0f);
-
-
-	// Setup light sources
-	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), lightCount, lightSourcesDirPosArr);
-	glUniform3fv(glGetUniformLocation(program, "lightSourcesColorArr"), lightCount, lightSourcesColorArr);
-	glUniform1iv(glGetUniformLocation(program, "isDirectional"), lightCount, isDirectional);
+			5.0f);
 }
 
 int fogEnable = 1;
@@ -848,6 +895,11 @@ void display(void)
 	glUniform1f(glGetUniformLocation(program, "time"), t);
 
 	glUniform1i(glGetUniformLocation(program, "fogEnable"), fogEnable);
+
+	// Update light sources
+	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), lightCount, lightSourcesDirPosArr);
+	glUniform3fv(glGetUniformLocation(program, "lightSourcesColorArr"), lightCount, lightSourcesColorArr);
+	glUniform1iv(glGetUniformLocation(program, "isDirectional"), lightCount, isDirectional);
 
 	drawEverything();
 	printError("drawEverything");

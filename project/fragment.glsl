@@ -25,7 +25,7 @@ uniform vec3 lightSourcesColorArr[NUM_LIGHTS];
 uniform bool isDirectional[NUM_LIGHTS];
 
 // Road
-#define NUM_WAYPOINTS 50
+#define NUM_WAYPOINTS 20
 #define ROAD_WIDTH 25.0
 #define WAYPOINT_DETECT_RADIUS 40.0
 uniform vec3 waypoints[NUM_WAYPOINTS];
@@ -37,6 +37,8 @@ uniform int hl_wp;
 uniform int thingType;
 
 uniform bool isParticle;
+uniform float particleLifetime;
+uniform vec3 particleColor;
 
 void main(void)
 {
@@ -118,6 +120,7 @@ void main(void)
 	}
 
 	if (isParticle) {
-		outColor = vec4(0.9, 0.9, 0.0, 1.0);
+		float alpha = 0.8 * clamp(particleLifetime, 0.0, 1.0);
+		outColor = vec4(particleColor, alpha);
 	}
 }
