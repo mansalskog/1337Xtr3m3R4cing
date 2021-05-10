@@ -330,6 +330,11 @@ Model *generate_particle_model() {
 #define ROAD_WIDTH 25.0f
 #define WAYPOINT_DETECT_RADIUS 40.0f
 
+#define MAX_LIGHTS 20
+#define LIGHT_NONE 0
+#define LIGHT_POSITION 1
+#define LIGHT_DIRECTION 2
+
 struct thing {
 	vec3 pos;
 	vec3 vel;
@@ -342,6 +347,8 @@ struct thing {
 	GLuint textures[MAX_THING_TEXTURES];
     mat4 baseMdlMatrix;
 	float radius;
+	int frontLightIndex;
+	int backLightIndex;
 };
 
 struct particle {
@@ -366,18 +373,26 @@ GLuint program;
 vec3 waypoints[NUM_WAYPOINTS];
 int paused = 1;
 
-int lightCount = 2;
-GLfloat lightSourcesDirPosArr[] = {
-	-1.0, -1.0, -1.0,
-	10.0, 10.0, 10.0,
-};
-GLfloat lightSourcesColorArr[] = {
-	1.0, 1.0, 1.0,
-	1.0, 1.0, 1.0,
-};
-int isDirectional[] = {1, 0};
+int lastLightIndex = 0;
+GLfloat lightSourcesDirPosArr[3*MAX_LIGHTS] = {0};
+GLfloat lightSourcesColorArr[3*MAX_LIGHTS] = {0};
+int lightSourcesTypeArr[MAX_LIGHTS] = {0};
 
 mat4 projectionMatrix;
+
+void setLight(int index, vec3 posDir, vec3 color, int type) {
+	if (index >= MAX_LIGHTS) {
+		fprintf(stderr, "Too many lights: %d!\n", index);
+		return;
+	}
+	lightSourcesDirPosArr[3*index] = posDir.x;
+	lightSourcesDirPosArr[3*index+1] = posDir.y;
+	lightSourcesDirPosArr[3*index+2] = posDir.z;
+	lightSourcesColorArr[3*index] = color.x;
+	lightSourcesColorArr[3*index+1] = color.y;
+	lightSourcesColorArr[3*index+2] = color.z;
+	lightSourcesTypeArr[index] = type;
+}
 
 void drawEverything() {
 	for (int i = 0; i < num_things; i++) {
@@ -622,6 +637,18 @@ void updateEverything(float delta_t) {
 							random_range(0.35f, 0.40f));
 				}
 			}
+
+			// Move light to in front of and behind the car
+			if (t->type == THING_PLAYER) {
+				setLight(t->frontLightIndex,
+						VectorAdd(VectorAdd(t->pos, SetVector(0, 2, 0)), ScalarMult(angle_y_vec(t->angle_y), 9.0f)),
+						SetVector(0.9f, 0.9f, 0.9f),
+						LIGHT_POSITION);
+				setLight(t->backLightIndex,
+						VectorAdd(VectorAdd(t->pos, SetVector(0, 2, 0)), ScalarMult(angle_y_vec(t->angle_y), -9.0f)),
+						SetVector(0.9f, 0.0f, 0.0f),
+						LIGHT_POSITION);
+			}
 		}
 	}
 }
@@ -643,6 +670,11 @@ struct thing *createThing(float x, float y, float z,
     t->baseMdlMatrix = baseMdlMatrix;
     t->radius = radius;
 	t->nextWaypoint = 0;
+	if (type == THING_ENEMY || type == THING_PLAYER) {
+		t->frontLightIndex = lastLightIndex++;
+		t->backLightIndex = lastLightIndex++;
+		printf("light index is %d\n", lastLightIndex);
+	}
 	return t;
 }
 
@@ -744,6 +776,10 @@ void init(void)
 	Model *oildrum = LoadModel("res/barrel.obj.obj");
 	Model *tires = LoadModel("res/wheel.obj");
     Model *fence = LoadModel("res/old_fence.obj");
+
+	// Create global lights
+	// setLight(lastLightIndex++, SetVector(-1.0f, -1.0f, -1.0f), SetVector(1.0f, 1.0f, 1.0f), LIGHT_DIRECTION);
+	// setLight(lastLightIndex++, SetVector(10.0f, 10.0f, 10.0f), SetVector(1.0f, 1.0f, 1.0f), LIGHT_POSITION);
 
 	// Create terrain (ground)
 	terrain = createThing(0, 0, 0,
@@ -897,9 +933,9 @@ void display(void)
 	glUniform1i(glGetUniformLocation(program, "fogEnable"), fogEnable);
 
 	// Update light sources
-	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), lightCount, lightSourcesDirPosArr);
-	glUniform3fv(glGetUniformLocation(program, "lightSourcesColorArr"), lightCount, lightSourcesColorArr);
-	glUniform1iv(glGetUniformLocation(program, "isDirectional"), lightCount, isDirectional);
+	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), MAX_LIGHTS, lightSourcesDirPosArr);
+	glUniform3fv(glGetUniformLocation(program, "lightSourcesColorArr"), MAX_LIGHTS, lightSourcesColorArr);
+	glUniform1iv(glGetUniformLocation(program, "lightSourcesTypeArr"), MAX_LIGHTS, lightSourcesTypeArr);
 
 	drawEverything();
 	printError("drawEverything");

@@ -19,10 +19,13 @@ uniform float time;
 uniform bool fogEnable;
 
 // Lighting
-#define NUM_LIGHTS 2
-uniform vec3 lightSourcesDirPosArr[NUM_LIGHTS];
-uniform vec3 lightSourcesColorArr[NUM_LIGHTS];
-uniform bool isDirectional[NUM_LIGHTS];
+#define MAX_LIGHTS 20
+#define LIGHT_NONE 0
+#define LIGHT_POSITION 1
+#define LIGHT_DIRECTION 2
+uniform vec3 lightSourcesDirPosArr[MAX_LIGHTS];
+uniform vec3 lightSourcesColorArr[MAX_LIGHTS];
+uniform int lightSourcesTypeArr[MAX_LIGHTS];
 
 // Road
 #define NUM_WAYPOINTS 20
@@ -54,18 +57,18 @@ void main(void)
 	vec3 ambientLight = reflectivity * vec3(0.3);
 	vec3 diffuseLight = vec3(0.0);
 	vec3 specularLight = vec3(0.0);
-	for (int i = 0; i < NUM_LIGHTS; i++) {
+	for (int i = 0; i < MAX_LIGHTS; i++) {
+		if (lightSourcesTypeArr[i] == LIGHT_NONE) continue;
 		// Direction or position of the light in view coordinates
 		vec3 lightDirPos = (camMatrix * mdlMatrix * vec4(lightSourcesDirPosArr[i], 1.0)).xyz;
 
 		// Direction towards the light
 		vec3 s;
-		if (isDirectional[i]) {
+		if (lightSourcesTypeArr[i] == LIGHT_DIRECTION) {
 		   s = normalize(lightDirPos);
-		} else {
-		  s = normalize(lightDirPos - viewPos);
+		} else if (lightSourcesTypeArr[i] == LIGHT_POSITION) {
+		   s = normalize(lightDirPos - viewPos);
 		}
-
 		diffuseLight += reflectivity * lightSourcesColorArr[i] * dot(s, transfNormal);
 
 		// s mirrored through transfNormal
