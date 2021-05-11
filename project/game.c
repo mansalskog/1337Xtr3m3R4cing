@@ -811,12 +811,30 @@ void init(void)
 	glUniform1i(glGetUniformLocation(program, "tex3"), 3); // Texture unit 3
 
 	// Load textures
-	GLuint maskros, concrete, dirt, grass, fencetex;
+	GLuint maskros, concrete, dirt, grass, fencetex,
+        barrel1, barrel2, car1, car2, car3, car4, fence1, fence2,
+        grass1, grass2, road1, road2, stone1, stone2, tire1;
 	LoadTGATextureSimple("res/maskros512.tga", &maskros);
 	LoadTGATextureSimple("res/conc.tga", &concrete);
 	LoadTGATextureSimple("res/dirt.tga", &dirt);
 	LoadTGATextureSimple("res/grass.tga", &grass);
     LoadTGATextureSimple("res/old_fence_texture.tga", &fencetex);
+    LoadTGATextureSimple("res/barrel1-tex.tga", &barrel1);
+	LoadTGATextureSimple("res/barrel2-tex.tga", &barrel2);
+	LoadTGATextureSimple("res/car1-tex.tga", &car1);
+	LoadTGATextureSimple("res/car2-tex.tga", &car2);
+    LoadTGATextureSimple("res/car3-tex.tga", &car3);
+    LoadTGATextureSimple("res/car4-tex.tga", &car4);
+	LoadTGATextureSimple("res/fence1-tex.tga", &fence1);
+	LoadTGATextureSimple("res/fence2-tex.tga", &fence2);
+	LoadTGATextureSimple("res/grass1-tex.tga", &grass1);
+    LoadTGATextureSimple("res/grass2-tex.tga", &grass2);
+    LoadTGATextureSimple("res/road1-tex.tga", &road1);
+	LoadTGATextureSimple("res/road2-tex.tga", &road2);
+	LoadTGATextureSimple("res/stone1-tex.tga", &stone1);
+	LoadTGATextureSimple("res/stone2-tex.tga", &stone2);
+    LoadTGATextureSimple("res/tire1-tex.tga", &tire1);
+
 
 	// Generate terrain model
 	Model *terrainMdl = terrain_generate_model();
@@ -922,32 +940,37 @@ void init(void)
 		Model *model;
 		mat4 modelMatr;
 		float radius;
+        GLuint tex;
 		switch (rand() % 4) {
 			case 0:
 				model = tree;
 				radius = 4.0f;
 				modelMatr = S(0.5f, 0.5f, 0.5f);
+                tex = grass1;
 				break;
 			case 1:
 				model = rock;
 				radius = 10.0f;
 				modelMatr = S(0.3f, 0.3f, 0.3f);
+                tex = stone1;
 				break;
 			case 2:
 				model = oildrum;
 				radius = 8.0f;
 				modelMatr = S(0.5f, 0.5f, 0.5f);
+                tex = barrel1;
 				break;
 			case 3:
 				model = tires;
 				radius = 2.0f;
 				modelMatr = Mult(T(0.0f, 0.2f, 0.0f), Mult(S(0.1f, 0.1f, 0.1f), Rx(M_PI / 2.0f)));
+                tex = tire1;
 				break;
 		}
 		createThing(x, terrain_height_at(x, z), z,
                     THING_OBSTACLE,
 					model, modelMatr,
-					concrete, dirt, grass, maskros,
+					tex, tex, tex, tex,
 					radius);
 	}
 
@@ -959,14 +982,14 @@ void init(void)
 		createThing(x, waypoints[0].y + 5.0f, z,
 				THING_ENEMY,
 				car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
-				fencetex, dirt, grass, maskros,
+				car1, car1, car1, car1,
 				5.0f);
 	}
 
 	player = createThing(waypoints[0].x, waypoints[0].y + 5.0f, waypoints[0].z,
 			THING_PLAYER,
 			car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
-			dirt, fencetex, grass, maskros,
+			car2, car2, car2, car2,
 			5.0f);
 }
 
