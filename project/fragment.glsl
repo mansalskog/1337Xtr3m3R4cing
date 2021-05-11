@@ -16,7 +16,6 @@ uniform mat4 camMatrix;
 uniform mat4 mdlMatrix;
 
 uniform float time;
-uniform bool fogEnable;
 
 // Lighting
 #define MAX_LIGHTS 30
@@ -42,6 +41,11 @@ uniform int thingType;
 uniform bool isParticle;
 uniform float particleLifetime;
 uniform vec3 particleColor;
+
+#define FAR_PLANE_DIST 500.0
+#define FOG_FADE_DIST 100.0
+#define FOG_COLOR 0.86, 0.86, 0.89, 0.0
+uniform bool fogEnable;
 
 void main(void)
 {
@@ -98,6 +102,9 @@ void main(void)
 		if (length(offset) < WAYPOINT_DETECT_RADIUS && length(offset) > WAYPOINT_DETECT_RADIUS * 0.9) {
 			color = texture(tex2, texCoord);
 		} else {
+			// Generate noise to get smoother edges
+			float noise = 2.0 * fract(sin(dot(worldPos.xz, vec2(12.9898,78.233))) * 43758.5453);
+
 			// Draw the road
 			for (int i = 0; i < NUM_WAYPOINTS; i++) {
 				// Line segment from waypoints[i-1] to waypoints[i]
@@ -110,11 +117,11 @@ void main(void)
 				vec3 u = worldPos - waypoints[i];
 				vec3 proj = dot(u, v) / dot(v, v) * v;
 				float d = dot(proj, v);
-				if (-dot(v, v) < d && d < 0.0 && length(u - proj) < ROAD_WIDTH) {
+				if (-dot(v, v) < d && d < 0.0 && length(u - proj) < ROAD_WIDTH + noise) {
 					color = texture(tex1, texCoord);
 					break;
 				}
-				if (length(u) < ROAD_WIDTH) {
+				if (length(u) < ROAD_WIDTH + noise) {
 					color = texture(tex1, texCoord);
 					break;
 				}
@@ -124,12 +131,12 @@ void main(void)
 
 	outColor = (color + totalLight) / 2.0;
 
-	const float fogDistance = 100.0;
-	if (fogEnable && length(viewPos) > fogDistance) {
-		// Fade out over 50 units
-		float t = (length(viewPos) - fogDistance) / 50.0;
+	float fogStartDist = FAR_PLANE_DIST - FOG_FADE_DIST;
+	if (fogEnable && length(viewPos) > fogStartDist) {
+		// Fade out over FOG_FADE_DIST units
+		float t = (length(viewPos) - fogStartDist) / FOG_FADE_DIST;
 		t = smoothstep(0.0, 1.0, t);
-		// outColor = mix(outColor, vec4(1.0, 1.0, 1.0, 0.0), t);
+		outColor = mix(outColor, vec4(FOG_COLOR), t);
 	}
 
 	if (isParticle) {

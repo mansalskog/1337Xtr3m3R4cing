@@ -323,6 +323,7 @@ Model *generate_particle_model() {
 #define PLAYER_WAYPOINT_SKIP 2
 
 #define FAR_PLANE_DIST 500.0f
+#define FOG_COLOR 0.86, 0.86, 0.89, 0.0
 
 // Max particles must be at least NUM_ENEMIES * particle lifetime * particles per car = 5 * 4 * 50
 #define MAX_PARTICLES 10000
@@ -786,7 +787,7 @@ void init(void)
 	srand(time(0));
 
 	// GL inits
-	glClearColor(0.2,0.2,0.5,0);
+	glClearColor(FOG_COLOR);
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
 	printError("GL inits");
