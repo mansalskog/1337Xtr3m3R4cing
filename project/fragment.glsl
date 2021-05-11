@@ -19,7 +19,7 @@ uniform float time;
 uniform bool fogEnable;
 
 // Lighting
-#define MAX_LIGHTS 20
+#define MAX_LIGHTS 30
 #define LIGHT_NONE 0
 #define LIGHT_POSITION 1
 #define LIGHT_DIRECTION 2
@@ -59,23 +59,32 @@ void main(void)
 	vec3 specularLight = vec3(0.0);
 	for (int i = 0; i < MAX_LIGHTS; i++) {
 		if (lightSourcesTypeArr[i] == LIGHT_NONE) continue;
+
 		// Direction or position of the light in view coordinates
-		vec3 lightDirPos = (camMatrix * mdlMatrix * vec4(lightSourcesDirPosArr[i], 1.0)).xyz;
+		// Light positions have no model matrix
+		vec3 lightDirPos = (camMatrix * vec4(lightSourcesDirPosArr[i], 1.0)).xyz;
 
 		// Direction towards the light
-		vec3 s;
+		vec3 dirToLight;
+		float attenuation;
 		if (lightSourcesTypeArr[i] == LIGHT_DIRECTION) {
-		   s = normalize(lightDirPos);
+		   dirToLight = normalize(lightDirPos);
+		   attenuation = 1.0;
 		} else if (lightSourcesTypeArr[i] == LIGHT_POSITION) {
-		   s = normalize(lightDirPos - viewPos);
+		   dirToLight = normalize(lightDirPos - viewPos);
+		   float d = length(lightDirPos - viewPos);
+		   float a = 1.0;
+		   float b = 0.1;
+		   float c = 0.01;
+		   attenuation = 1.0 / (a + b*d + c*d*d);
 		}
-		diffuseLight += reflectivity * lightSourcesColorArr[i] * dot(s, transfNormal);
+		diffuseLight += max(vec3(0.0), reflectivity * lightSourcesColorArr[i] * dot(dirToLight, transfNormal)) * attenuation;
 
 		// s mirrored through transfNormal
-		vec3 r = normalize(2.0 * transfNormal * dot(s, transfNormal) - s);
+		vec3 r = normalize(2.0 * transfNormal * dot(dirToLight, transfNormal) - dirToLight);
 		// Vector towards the camera, assuming the camera is at the orgin in view coords
 		vec3 v = normalize(vec3(0.0) - viewPos);
-		specularLight += specularity * lightSourcesColorArr[i] * pow(dot(r, v), specularExponent);
+		specularLight += max(vec3(0.0), specularity * lightSourcesColorArr[i] * pow(dot(r, v), specularExponent)) * attenuation;
 	}
 	vec4 totalLight = vec4(ambientLight + diffuseLight + specularLight, 1.0);
 
@@ -112,7 +121,8 @@ void main(void)
 			}
 		}
 	}
-	outColor = color * totalLight;
+
+	outColor = (color + totalLight) / 2.0;
 
 	const float fogDistance = 100.0;
 	if (fogEnable && length(viewPos) > fogDistance) {

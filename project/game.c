@@ -314,10 +314,15 @@ Model *generate_particle_model() {
 
 #define CAMERA_BEHIND_FAR 0
 #define CAMERA_BEHIND_CLOSE 1
-#define CAMERA_IN_CAR 2
-#define CAMERA_ABOVE_CAR 3
-#define CAMERA_ABOVE_MAP 4
-#define CAMERA_MODE_LAST 4
+#define CAMERA_IN_FRONT 2
+#define CAMERA_IN_CAR 3
+#define CAMERA_ABOVE_CAR 4
+#define CAMERA_ABOVE_MAP 5
+#define CAMERA_MODE_LAST 5
+
+#define PLAYER_WAYPOINT_SKIP 2
+
+#define FAR_PLANE_DIST 500.0f
 
 // Max particles must be at least NUM_ENEMIES * particle lifetime * particles per car = 5 * 4 * 50
 #define MAX_PARTICLES 10000
@@ -330,10 +335,11 @@ Model *generate_particle_model() {
 #define ROAD_WIDTH 25.0f
 #define WAYPOINT_DETECT_RADIUS 40.0f
 
-#define MAX_LIGHTS 20
+#define MAX_LIGHTS 30
 #define LIGHT_NONE 0
 #define LIGHT_POSITION 1
 #define LIGHT_DIRECTION 2
+#define LIGHTS_PER_THING 4
 
 struct thing {
 	vec3 pos;
@@ -347,8 +353,7 @@ struct thing {
 	GLuint textures[MAX_THING_TEXTURES];
     mat4 baseMdlMatrix;
 	float radius;
-	int frontLightIndex;
-	int backLightIndex;
+	int lightIndex[LIGHTS_PER_THING];
 };
 
 struct particle {
@@ -380,6 +385,17 @@ int lightSourcesTypeArr[MAX_LIGHTS] = {0};
 
 mat4 projectionMatrix;
 
+vec3 view_pos;
+vec3 view_target;
+
+int seenByCamera(vec3 pos) {
+	// Check if angle is less than 90 degrees, which approximately is what we can see.
+	vec3 camToPos = VectorSub(pos, view_pos);
+	float angle = DotProduct(Normalize(camToPos), Normalize(VectorSub(view_target, view_pos)));
+	return Norm(camToPos) < FAR_PLANE_DIST
+		&& fabs(acos(angle)) < M_PI / 4.0;
+}
+
 void setLight(int index, vec3 posDir, vec3 color, int type) {
 	if (index >= MAX_LIGHTS) {
 		fprintf(stderr, "Too many lights: %d!\n", index);
@@ -397,6 +413,12 @@ void setLight(int index, vec3 posDir, vec3 color, int type) {
 void drawEverything() {
 	for (int i = 0; i < num_things; i++) {
 		struct thing *t = &things[i];
+
+		// Skip things "out of view", except terrain and player
+		if (t->type != THING_TERRAIN && t->type != THING_PLAYER) {
+			if (!seenByCamera(t->pos)) continue;
+		}
+
 		mat4 mdlMatrix;
 		if (t->type == THING_TERRAIN || t->type == THING_OBSTACLE) {
 			mdlMatrix = Mult(
@@ -444,6 +466,10 @@ void drawParticles() {
 	glUniform1i(glGetUniformLocation(program, "isParticle"), 1);
 	for (int i = 0; i < MAX_PARTICLES; i++) {
 		struct particle *p = &particles[i];
+
+		// Skip particles "out of view"
+		if (!seenByCamera(p->pos)) continue;
+
 		if (p->lifetime > 0.0f) {
 			mat4 mdlMatrix = T(p->pos.x, p->pos.y, p->pos.z);
 			glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
@@ -591,8 +617,8 @@ void updateEverything(float delta_t) {
 							SetVector(0.83f, 0.67f, 0.22f),
 							1.0f);
 				}
-
-				t->nextWaypoint = (t->nextWaypoint + 1) % NUM_WAYPOINTS;
+				// Player only needs to hit some waypoints
+				t->nextWaypoint = (t->nextWaypoint + PLAYER_WAYPOINT_SKIP) % NUM_WAYPOINTS;
 			}
 		}
 		if (t->type == THING_ENEMY || t->type == THING_PLAYER) {
@@ -628,9 +654,7 @@ void updateEverything(float delta_t) {
 			if (speed > CAR_MIN_TURN_SPEED) {
 				for (int i = 0; i < 50; i++) {
 					addParticle(
-							VectorAdd(
-								VectorAdd(t->pos, ScalarMult(angle_y_vec(t->angle_y), -3.0f)),
-								SetVector(random_range(-2, 2), random_range(-2, 2), random_range(-2, 2))),
+							VectorAdd(t->pos, ScalarMult(angle_y_vec(t->angle_y + random_range(-1.0f, 1.0f)), -random_range(1.5f, 3.0f))),
 							VectorAdd(ScalarMult(angle_y_vec(t->angle_y), 3.0f), SetVector(0.0f, 5.0f, 0.0f)),
 							random_range(0.8f, 1.2f),
 							SetVector(0.11f, 0.11f, 0.11f),
@@ -638,16 +662,44 @@ void updateEverything(float delta_t) {
 				}
 			}
 
-			// Move light to in front of and behind the car
+			// Move headlight to in front of and behind the car
+			const vec3 FRONT_LIGHT_COLOR = SetVector(0.78f, 0.91f, 1.0f);
+			const vec3 BACK_LIGHT_COLOR = SetVector(0.9f, 0.2f, 0.2f);
 			if (t->type == THING_PLAYER) {
-				setLight(t->frontLightIndex,
-						VectorAdd(VectorAdd(t->pos, SetVector(0, 2, 0)), ScalarMult(angle_y_vec(t->angle_y), 9.0f)),
-						SetVector(0.9f, 0.9f, 0.9f),
+				setLight(t->lightIndex[0],
+						VectorAdd(VectorAdd(t->pos, SetVector(0, 0.5f, 0)), ScalarMult(angle_y_vec(t->angle_y + 0.6f), 4.0f)),
+						FRONT_LIGHT_COLOR,
 						LIGHT_POSITION);
-				setLight(t->backLightIndex,
-						VectorAdd(VectorAdd(t->pos, SetVector(0, 2, 0)), ScalarMult(angle_y_vec(t->angle_y), -9.0f)),
-						SetVector(0.9f, 0.0f, 0.0f),
+				setLight(t->lightIndex[1],
+						VectorAdd(VectorAdd(t->pos, SetVector(0, 0.5f, 0)), ScalarMult(angle_y_vec(t->angle_y - 0.5f), 4.0f)),
+						FRONT_LIGHT_COLOR,
 						LIGHT_POSITION);
+				setLight(t->lightIndex[2],
+						VectorAdd(VectorAdd(t->pos, SetVector(0, 0.5f, 0)), ScalarMult(angle_y_vec(t->angle_y + 0.6f), -3.0f)),
+						BACK_LIGHT_COLOR,
+						LIGHT_POSITION);
+				setLight(t->lightIndex[3],
+						VectorAdd(VectorAdd(t->pos, SetVector(0, 0.5f, 0)), ScalarMult(angle_y_vec(t->angle_y - 0.5f), -3.0f)),
+						BACK_LIGHT_COLOR,
+						LIGHT_POSITION);
+			} else if (t->type == THING_ENEMY && seenByCamera(t->pos)) {
+				// Use only two lights for enemies
+				setLight(t->lightIndex[0],
+						VectorAdd(VectorAdd(t->pos, SetVector(0, 0.5f, 0)), ScalarMult(angle_y_vec(t->angle_y), 4.0f)),
+						FRONT_LIGHT_COLOR,
+						LIGHT_POSITION);
+				setLight(t->lightIndex[1],
+						VectorAdd(VectorAdd(t->pos, SetVector(0, 0.5f, 0)), ScalarMult(angle_y_vec(t->angle_y), -3.0f)),
+						BACK_LIGHT_COLOR,
+						LIGHT_POSITION);
+			} else {
+				// Turn off all lights for far away cars
+				for (int i = 0; i < LIGHTS_PER_THING; i++) {
+					setLight(t->lightIndex[i],
+							SetVector(0.0f, 0.0f, 0.0f),
+							SetVector(0.0f, 0.0f, 0.0f),
+							LIGHT_NONE);
+				}
 			}
 		}
 	}
@@ -671,15 +723,15 @@ struct thing *createThing(float x, float y, float z,
     t->radius = radius;
 	t->nextWaypoint = 0;
 	if (type == THING_ENEMY || type == THING_PLAYER) {
-		t->frontLightIndex = lastLightIndex++;
-		t->backLightIndex = lastLightIndex++;
+		for (int i = 0; i < LIGHTS_PER_THING; i++) {
+			t->lightIndex[i] = lastLightIndex++;
+		}
 		printf("light index is %d\n", lastLightIndex);
 	}
 	return t;
 }
 
 void setCameraMatrix() {
-	vec3 view_pos, view_target;
 	vec3 up_vector = {0, 1, 0};
 	switch (camera_mode) {
 		case CAMERA_BEHIND_FAR:
@@ -694,13 +746,19 @@ void setCameraMatrix() {
 						SetVector(0, 5, 0)));
 			view_target = player->pos;
 			break;
+		case CAMERA_IN_FRONT:
+			view_pos = VectorAdd(player->pos, VectorAdd(
+						ScalarMult(angle_y_vec(player->angle_y), 25.0f),
+						SetVector(0, 10, 0)));
+			view_target = player->pos;
+			break;
 		case CAMERA_IN_CAR:
 			view_pos = VectorAdd(player->pos, SetVector(0, 10, 0));
 			view_target = VectorAdd(view_pos,
 					ScalarMult(angle_y_vec(player->angle_y), 50.0f));
 			break;
 		case CAMERA_ABOVE_CAR:
-			view_pos = VectorAdd(player->pos, SetVector(0, 200, 0));
+			view_pos = VectorAdd(player->pos, SetVector(0, 50, 0));
 			view_target = player->pos;
 			up_vector = angle_y_vec(player->angle_y);
 			break;
@@ -737,7 +795,7 @@ void init(void)
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	projectionMatrix = frustum(-0.1, 0.1, -0.1, 0.1, 0.2, 1500.0);
+	projectionMatrix = frustum(-0.1, 0.1, -0.1, 0.1, 0.2, FAR_PLANE_DIST);
 
 	// Load and compile shader
 	program = loadShaders("vertex.glsl", "fragment.glsl");
@@ -778,7 +836,7 @@ void init(void)
     Model *fence = LoadModel("res/old_fence.obj");
 
 	// Create global lights
-	// setLight(lastLightIndex++, SetVector(-1.0f, -1.0f, -1.0f), SetVector(1.0f, 1.0f, 1.0f), LIGHT_DIRECTION);
+	setLight(lastLightIndex++, SetVector(-1.0f, -1.0f, -1.0f), SetVector(0.94f, 0.56f, 0.22f), LIGHT_DIRECTION);
 	// setLight(lastLightIndex++, SetVector(10.0f, 10.0f, 10.0f), SetVector(1.0f, 1.0f, 1.0f), LIGHT_POSITION);
 
 	// Create terrain (ground)

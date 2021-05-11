@@ -1,7 +1,7 @@
 # set this variable to the director in which you saved the common files
 commondir = common/
 osname := $(shell uname)
-flags = -Wall -Wextra -Wno-deprecated-declarations -Wno-unused-variable -Wno-unused-parameter -g
+flags = -Wall -Wextra -Wno-deprecated-declarations -Wno-unused-variable -Wno-unused-parameter -g -O3
 ifeq ($(osname),Darwin)
 	osname = Mac
 	linkflags = -framework Foundation -lobjc -framework OpenGl -framework GLUT -lm -framework CoreFoundation -framework ApplicationServices -framework IOKit -framework CoreServices -framework Cocoa -framework Carbon
