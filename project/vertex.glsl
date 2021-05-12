@@ -14,6 +14,8 @@ uniform mat4 camMatrix;
 uniform mat4 mdlMatrix;
 
 uniform bool isParticle;
+uniform bool isUserInterface;
+
 uniform float particleLifetime;
 uniform float particleSize;
 
@@ -33,6 +35,9 @@ void main(void)
 		totalMat[1] = vec4(0.0,   s, 0.0, 0.0);
 		totalMat[2] = vec4(0.0, 0.0,   s, 0.0);
 		gl_Position = totalMat * vec4(inPosition, 1.0);
+	} else if (isUserInterface) {
+		// No transformation except model matrix, draw in screen space directly
+		gl_Position = mdlMatrix * vec4(inPosition, 1.0);
 	}
 
 	viewPos = vec3(viewPosition);

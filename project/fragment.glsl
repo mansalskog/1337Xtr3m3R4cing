@@ -39,6 +39,8 @@ uniform int hl_wp;
 uniform int thingType;
 
 uniform bool isParticle;
+uniform bool isUserInterface;
+
 uniform float particleLifetime;
 uniform vec3 particleColor;
 
@@ -129,7 +131,7 @@ void main(void)
 		}
 	}
 
-	outColor = (color + totalLight) / 2.0;
+	outColor = color * totalLight;
 
 	float fogStartDist = FAR_PLANE_DIST - FOG_FADE_DIST;
 	if (fogEnable && length(viewPos) > fogStartDist) {
@@ -140,7 +142,11 @@ void main(void)
 	}
 
 	if (isParticle) {
+		// Skip texture, use plain color
 		float alpha = 0.8 * clamp(particleLifetime, 0.0, 1.0);
-		outColor = vec4(particleColor, alpha);
+		outColor = vec4(particleColor, alpha) * totalLight;
+	} else if (isUserInterface) {
+		// Skip all lighting, just use the texture
+		outColor = texture(tex0, texCoord);
 	}
 }

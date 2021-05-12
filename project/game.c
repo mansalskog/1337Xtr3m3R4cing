@@ -265,12 +265,12 @@ Model *generate_particle_model() {
 	normalArray[4] = SetVector(0, 0, -1);
 	normalArray[5] = SetVector(0, 0, -1);
 
-	texCoordArray[0] = SetVector2(-1, -1);
-	texCoordArray[1] = SetVector2( 1, -1);
-	texCoordArray[2] = SetVector2(-1,  1);
-	texCoordArray[3] = SetVector2( 1, -1);
-	texCoordArray[4] = SetVector2( 1,  1);
-	texCoordArray[5] = SetVector2(-1,  1);
+	texCoordArray[0] = SetVector2(1, 1);
+	texCoordArray[1] = SetVector2(0, 1);
+	texCoordArray[2] = SetVector2(1, 0);
+	texCoordArray[3] = SetVector2(0, 1);
+	texCoordArray[4] = SetVector2(0, 0);
+	texCoordArray[5] = SetVector2(1, 0);
 
 	indexArray[0] = 0;
 	indexArray[1] = 1;
@@ -330,7 +330,7 @@ Model *generate_particle_model() {
 #define MAX_THINGS 1000
 #define MAX_THING_TEXTURES 4
 #define NUM_TERRAIN_OBJS 40
-#define NUM_ENEMIES 5
+#define NUM_ENEMIES 3
 #define NUM_WAYPOINTS 20
 
 #define ROAD_WIDTH 25.0f
@@ -355,6 +355,7 @@ struct thing {
     mat4 baseMdlMatrix;
 	float radius;
 	int lightIndex[LIGHTS_PER_THING];
+	int laps;
 };
 
 struct particle {
@@ -388,6 +389,8 @@ mat4 projectionMatrix;
 
 vec3 view_pos;
 vec3 view_target;
+
+GLuint currentPositionTex[NUM_ENEMIES];
 
 int seenByCamera(vec3 pos) {
 	// Check if angle is less than 90 degrees, which approximately is what we can see.
@@ -483,6 +486,48 @@ void drawParticles() {
 	glUniform1i(glGetUniformLocation(program, "isParticle"), 0);
 }
 
+int numberOfCarsBeforePlayer() {
+	int before = 0;
+	for (int i = 0; i < num_things; i++) {
+		struct thing *t = &things[i];
+		if (t->type == THING_ENEMY) {
+			if (t->laps > player->laps) {
+				before++;
+				break;
+			} else if (t->laps == player->laps
+					&& t->nextWaypoint - 1 > player->nextWaypoint - PLAYER_WAYPOINT_SKIP) {
+				// The subtraction above makes sure we compare the last waypoint captured
+				before++;
+				break;
+			}
+		}
+	}
+	return before;
+}
+
+void drawUserInterface() {
+	glUniform1i(glGetUniformLocation(program, "isUserInterface"), 1);
+
+	mat4 mdlMatrix = Mult(T(-0.5f, -0.5f, 0.0f), S(0.3f, 0.3f, 0.3f));
+	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
+	int numCarsBefore = numberOfCarsBeforePlayer();
+	if (numCarsBefore < 0 || NUM_ENEMIES <= numCarsBefore) {
+		fprintf(stderr, "Invalid number of cars before %d!\n", numCarsBefore);
+	}
+	GLuint texture = currentPositionTex[numCarsBefore];
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	DrawModel(particle_model, program, "inPosition", "inNormal", "inTexCoord");
+
+	glUniform1i(glGetUniformLocation(program, "isUserInterface"), 0);
+}
+
 void addParticle(vec3 pos, vec3 vel, float lifetime, vec3 color, float size) {
 	struct particle *p = &particles[idx_particle];
 	idx_particle = (idx_particle + 1) % MAX_PARTICLES;
@@ -568,6 +613,10 @@ void updateEverything(float delta_t) {
 			// Select new waypoint if close enough
 			if (Norm(v_to_wp) < 20.0f) {
 				t->nextWaypoint = (t->nextWaypoint + 1) % NUM_WAYPOINTS;
+				if (t->nextWaypoint == 0) {
+					// We have gone around one time
+					t->laps++;
+				}
 			}
 		}
 		// Update the player driving if on ground
@@ -620,6 +669,10 @@ void updateEverything(float delta_t) {
 				}
 				// Player only needs to hit some waypoints
 				t->nextWaypoint = (t->nextWaypoint + PLAYER_WAYPOINT_SKIP) % NUM_WAYPOINTS;
+				if (t->nextWaypoint == 0) {
+					// Gone around one time, assuming that PLAYER_WAYPOINT_SKIP is a multiple of NUM_WAYPOINTS
+					t->laps++;
+				}
 			}
 		}
 		if (t->type == THING_ENEMY || t->type == THING_PLAYER) {
@@ -723,6 +776,7 @@ struct thing *createThing(float x, float y, float z,
     t->baseMdlMatrix = baseMdlMatrix;
     t->radius = radius;
 	t->nextWaypoint = 0;
+	t->laps = 0;
 	if (type == THING_ENEMY || type == THING_PLAYER) {
 		for (int i = 0; i < LIGHTS_PER_THING; i++) {
 			t->lightIndex[i] = lastLightIndex++;
@@ -810,11 +864,16 @@ void init(void)
 	glUniform1i(glGetUniformLocation(program, "tex2"), 2); // Texture unit 2
 	glUniform1i(glGetUniformLocation(program, "tex3"), 3); // Texture unit 3
 
+	// Load user interface textures
+	LoadTGATextureSimple("res/maskros512.tga", &currentPositionTex[0]);
+	LoadTGATextureSimple("res/old_fence_texture.tga", &currentPositionTex[1]);
+	LoadTGATextureSimple("res/fft-terrain.tga", &currentPositionTex[2]);
+	LoadTGATextureSimple("res/tire1-tex.tga", &currentPositionTex[3]);
+
 	// Load textures
-	GLuint maskros, concrete, dirt, grass, fencetex,
+	GLuint concrete, dirt, grass, fencetex,
         barrel1, barrel2, car1, car2, car3, car4, fence1, fence2,
         grass1, grass2, road1, road2, stone1, stone2, tire1;
-	LoadTGATextureSimple("res/maskros512.tga", &maskros);
 	LoadTGATextureSimple("res/conc.tga", &concrete);
 	LoadTGATextureSimple("res/dirt.tga", &dirt);
 	LoadTGATextureSimple("res/grass.tga", &grass);
@@ -862,7 +921,7 @@ void init(void)
 	terrain = createThing(0, 0, 0,
 			THING_TERRAIN,
 			terrainMdl, IdentityMatrix(),
-			grass, dirt, fencetex, maskros,
+			grass, dirt, grass, grass,
 			0.0f);
 
 	// Create waypoints
@@ -911,13 +970,13 @@ void init(void)
 				createThing(pos.x, terrain_height_at(pos.x, pos.z), pos.z,
 							THING_OBSTACLE,
 							fence, modelMat,
-							fencetex, dirt, grass, maskros,
+							fencetex, concrete, concrete, concrete,
 							radius);
 				pos = VectorAdd(lastPoint, VectorAdd(ScalarMult(v, t), ScalarMult(u, -2.0f * ROAD_WIDTH)));
 				createThing(pos.x, terrain_height_at(pos.x, pos.z), pos.z,
 							THING_OBSTACLE,
 							fence, modelMat,
-							fencetex, dirt, grass, maskros,
+							fencetex, concrete, concrete, concrete,
 							radius);
 			}
 			t += FENCE_WIDTH;
@@ -941,33 +1000,38 @@ void init(void)
 		mat4 modelMatr;
 		float radius;
         GLuint tex;
-		switch (rand() % 4) {
+		vec3 pos = SetVector(x, terrain_height_at(x, z), z);
+		int max_rng = 2;
+		if (!isOnRoad(pos)) {
+			max_rng = 4; // Only make trees and rocks if not on the road
+		}
+		switch (rand() % max_rng) {
 			case 0:
-				model = tree;
-				radius = 4.0f;
-				modelMatr = S(0.5f, 0.5f, 0.5f);
-                tex = grass1;
-				break;
-			case 1:
-				model = rock;
-				radius = 10.0f;
-				modelMatr = S(0.3f, 0.3f, 0.3f);
-                tex = stone1;
-				break;
-			case 2:
 				model = oildrum;
 				radius = 8.0f;
 				modelMatr = S(0.5f, 0.5f, 0.5f);
                 tex = barrel1;
 				break;
-			case 3:
+			case 1:
 				model = tires;
 				radius = 2.0f;
 				modelMatr = Mult(T(0.0f, 0.2f, 0.0f), Mult(S(0.1f, 0.1f, 0.1f), Rx(M_PI / 2.0f)));
                 tex = tire1;
 				break;
+			case 2:
+				model = tree;
+				radius = 4.0f;
+				modelMatr = S(0.5f, 0.5f, 0.5f);
+                tex = grass1;
+				break;
+			case 3:
+				model = rock;
+				radius = 10.0f;
+				modelMatr = S(0.3f, 0.3f, 0.3f);
+                tex = stone1;
+				break;
 		}
-		createThing(x, terrain_height_at(x, z), z,
+		createThing(pos.x, pos.y, pos.z,
                     THING_OBSTACLE,
 					model, modelMatr,
 					tex, tex, tex, tex,
@@ -976,20 +1040,32 @@ void init(void)
 
 	// Create enemies
 	for (int i = 0; i < NUM_ENEMIES; i++) {
-		const float DEV = 100.0f;
+		const float DEV = 10.0f;
 		float x = waypoints[0].x + random_range(-DEV, DEV);
 		float z = waypoints[0].z + random_range(-DEV, DEV);
+		GLuint tex;
+		switch (i) {
+			case 1:
+				tex = car1;
+				break;
+			case 2:
+				tex = car2;
+				break;
+			case 3:
+				tex = car3;
+				break;
+		}
 		createThing(x, waypoints[0].y + 5.0f, z,
 				THING_ENEMY,
 				car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
-				car1, car1, car1, car1,
+				tex, tex, tex, tex,
 				5.0f);
 	}
 
 	player = createThing(waypoints[0].x, waypoints[0].y + 5.0f, waypoints[0].z,
 			THING_PLAYER,
 			car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
-			car2, car2, car2, car2,
+			car4, car4, car4, car4,
 			5.0f);
 }
 
@@ -1024,6 +1100,9 @@ void display(void)
 
 	drawParticles();
 	printError("drawParticles");
+
+	drawUserInterface();
+	printError("drawUserInterface");
 
 	glutSwapBuffers();
 }
