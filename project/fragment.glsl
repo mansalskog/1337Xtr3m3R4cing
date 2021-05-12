@@ -102,7 +102,7 @@ void main(void)
 		// Highlight waypoints
 		vec3 offset = worldPos - waypoints[hl_wp];
 		if (length(offset) < WAYPOINT_DETECT_RADIUS && length(offset) > WAYPOINT_DETECT_RADIUS * 0.9) {
-			color = texture(tex2, texCoord);
+			color = vec4(0.83, 0.67, 0.22, 1.0);
 		} else {
 			// Generate noise to get smoother edges
 			float noise = 2.0 * fract(sin(dot(worldPos.xz, vec2(12.9898,78.233))) * 43758.5453);

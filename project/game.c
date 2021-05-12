@@ -265,12 +265,12 @@ Model *generate_particle_model() {
 	normalArray[4] = SetVector(0, 0, -1);
 	normalArray[5] = SetVector(0, 0, -1);
 
-	texCoordArray[0] = SetVector2(1, 1);
-	texCoordArray[1] = SetVector2(0, 1);
-	texCoordArray[2] = SetVector2(1, 0);
-	texCoordArray[3] = SetVector2(0, 1);
-	texCoordArray[4] = SetVector2(0, 0);
-	texCoordArray[5] = SetVector2(1, 0);
+	texCoordArray[0] = SetVector2(0, 1);
+	texCoordArray[1] = SetVector2(1, 1);
+	texCoordArray[2] = SetVector2(0, 0);
+	texCoordArray[3] = SetVector2(1, 1);
+	texCoordArray[4] = SetVector2(1, 0);
+	texCoordArray[5] = SetVector2(0, 0);
 
 	indexArray[0] = 0;
 	indexArray[1] = 1;
@@ -320,9 +320,7 @@ Model *generate_particle_model() {
 #define CAMERA_ABOVE_MAP 5
 #define CAMERA_MODE_LAST 5
 
-#define PLAYER_WAYPOINT_SKIP 2
-
-#define FAR_PLANE_DIST 500.0f
+#define FAR_PLANE_DIST 1500.0f
 #define FOG_COLOR 0.86, 0.86, 0.89, 0.0
 
 // Max particles must be at least NUM_ENEMIES * particle lifetime * particles per car = 5 * 4 * 50
@@ -332,6 +330,8 @@ Model *generate_particle_model() {
 #define NUM_TERRAIN_OBJS 40
 #define NUM_ENEMIES 3
 #define NUM_WAYPOINTS 20
+// Must be a divisor of NUM_WAYPOINTS
+#define PLAYER_WAYPOINT_SKIP 2
 
 #define ROAD_WIDTH 25.0f
 #define WAYPOINT_DETECT_RADIUS 40.0f
@@ -378,7 +378,10 @@ Model *particle_model;
 int camera_mode = CAMERA_BEHIND_FAR;
 GLuint program;
 vec3 waypoints[NUM_WAYPOINTS];
+
 int paused = 1;
+int cheats = 0;
+int fogEnable = 1;
 
 int lastLightIndex = 0;
 GLfloat lightSourcesDirPosArr[3*MAX_LIGHTS] = {0};
@@ -390,7 +393,13 @@ mat4 projectionMatrix;
 vec3 view_pos;
 vec3 view_target;
 
-GLuint currentPositionTex[NUM_ENEMIES];
+int oldNumCarsBefore = 0;
+float newPositionAlertStart = 0.0f;
+
+// User interface textures
+GLuint currentPlaceTex[NUM_ENEMIES + 1];
+GLuint newPlaceTex[NUM_ENEMIES + 1];
+GLuint pausedTex;
 
 int seenByCamera(vec3 pos) {
 	// Check if angle is less than 90 degrees, which approximately is what we can see.
@@ -493,28 +502,23 @@ int numberOfCarsBeforePlayer() {
 		if (t->type == THING_ENEMY) {
 			if (t->laps > player->laps) {
 				before++;
-				break;
-			} else if (t->laps == player->laps
-					&& t->nextWaypoint - 1 > player->nextWaypoint - PLAYER_WAYPOINT_SKIP) {
-				// The subtraction above makes sure we compare the last waypoint captured
-				before++;
-				break;
+			} else if (t->laps == player->laps) {
+				if (t->nextWaypoint > player->nextWaypoint) {
+					before++;
+				} else if (t->nextWaypoint == player->nextWaypoint) {
+					vec3 wp = waypoints[t->nextWaypoint];
+					if (Norm(VectorSub(wp, t->pos)) < Norm(VectorSub(wp, player->pos))) {
+						before++;
+					}
+				}
 			}
 		}
 	}
 	return before;
 }
 
-void drawUserInterface() {
-	glUniform1i(glGetUniformLocation(program, "isUserInterface"), 1);
-
-	mat4 mdlMatrix = Mult(T(-0.5f, -0.5f, 0.0f), S(0.3f, 0.3f, 0.3f));
-	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, mdlMatrix.m);
-	int numCarsBefore = numberOfCarsBeforePlayer();
-	if (numCarsBefore < 0 || NUM_ENEMIES <= numCarsBefore) {
-		fprintf(stderr, "Invalid number of cars before %d!\n", numCarsBefore);
-	}
-	GLuint texture = currentPositionTex[numCarsBefore];
+void drawTextureToScreen(GLuint texture, mat4 transfMatrix) {
+	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, transfMatrix.m);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glActiveTexture(GL_TEXTURE1);
@@ -524,6 +528,30 @@ void drawUserInterface() {
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, texture);
 	DrawModel(particle_model, program, "inPosition", "inNormal", "inTexCoord");
+}
+
+void drawUserInterface() {
+	glUniform1i(glGetUniformLocation(program, "isUserInterface"), 1);
+
+	int numCarsBefore = numberOfCarsBeforePlayer();
+	if (numCarsBefore < 0 || NUM_ENEMIES < numCarsBefore) {
+		fprintf(stderr, "Invalid number of cars before %d!\n", numCarsBefore);
+	}
+	drawTextureToScreen(currentPlaceTex[numCarsBefore], Mult(S(1.0f, 0.5f, 1.0f), T(0.0f, -2.5f, 0.0f)));
+
+	GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	if (numCarsBefore != oldNumCarsBefore) {
+		oldNumCarsBefore = numCarsBefore;
+		newPositionAlertStart = t;
+	}
+	if (!paused && t - newPositionAlertStart < 0.5f) {
+		// Show alert for 0.5 seconds
+		drawTextureToScreen(newPlaceTex[numCarsBefore], Mult(S(1.0f, 0.5f, 1.0f), T(0.5f, 0.5f, 0.0f)));
+	}
+
+	if (paused) {
+		drawTextureToScreen(pausedTex, Mult(S(2.0f, 1.0f, 1.0f), T(0.75f, 0.0f, 0.0f)));
+	}
 
 	glUniform1i(glGetUniformLocation(program, "isUserInterface"), 0);
 }
@@ -612,7 +640,7 @@ void updateEverything(float delta_t) {
 										  delta_t * accel));
 			// Select new waypoint if close enough
 			if (Norm(v_to_wp) < 20.0f) {
-				t->nextWaypoint = (t->nextWaypoint + 1) % NUM_WAYPOINTS;
+				t->nextWaypoint = (t->nextWaypoint + PLAYER_WAYPOINT_SKIP) % NUM_WAYPOINTS;
 				if (t->nextWaypoint == 0) {
 					// We have gone around one time
 					t->laps++;
@@ -629,6 +657,9 @@ void updateEverything(float delta_t) {
 			float accel = CAR_ACCEL;
 			if (isOnRoad(t->pos)) {
 				accel = CAR_ROAD_ACCEL;
+			}
+			if (cheats) {
+				accel = 3.0f * CAR_ROAD_ACCEL;
 			}
 			// Accelerating
 			if (forward) {
@@ -680,6 +711,9 @@ void updateEverything(float delta_t) {
 			float max_speed = CAR_MAX_SPEED;
 			if (isOnRoad(t->pos)) {
 				max_speed = CAR_ROAD_MAX_SPEED;
+			}
+			if (cheats && t->type == THING_PLAYER) {
+				max_speed = 3.0f * CAR_ROAD_MAX_SPEED;
 			}
 			const float speed = norm2(t->vel.x, t->vel.z);
 			float air_drag = CAR_AIR_DRAG;
@@ -781,7 +815,6 @@ struct thing *createThing(float x, float y, float z,
 		for (int i = 0; i < LIGHTS_PER_THING; i++) {
 			t->lightIndex[i] = lastLightIndex++;
 		}
-		printf("light index is %d\n", lastLightIndex);
 	}
 	return t;
 }
@@ -818,7 +851,7 @@ void setCameraMatrix() {
 			up_vector = angle_y_vec(player->angle_y);
 			break;
 		case CAMERA_ABOVE_MAP:
-			view_pos = SetVector(0, 1400, 0);
+			view_pos = SetVector(0, 1000, 0);
 			view_target = SetVector(0, 0, 0);
 			up_vector = SetVector(1, 0, 0);
 			break;
@@ -865,10 +898,15 @@ void init(void)
 	glUniform1i(glGetUniformLocation(program, "tex3"), 3); // Texture unit 3
 
 	// Load user interface textures
-	LoadTGATextureSimple("res/maskros512.tga", &currentPositionTex[0]);
-	LoadTGATextureSimple("res/old_fence_texture.tga", &currentPositionTex[1]);
-	LoadTGATextureSimple("res/fft-terrain.tga", &currentPositionTex[2]);
-	LoadTGATextureSimple("res/tire1-tex.tga", &currentPositionTex[3]);
+	LoadTGATextureSimple("res/1st.tga", &currentPlaceTex[0]);
+	LoadTGATextureSimple("res/2nd.tga", &currentPlaceTex[1]);
+	LoadTGATextureSimple("res/3rd.tga", &currentPlaceTex[2]);
+	LoadTGATextureSimple("res/4th.tga", &currentPlaceTex[3]);
+	LoadTGATextureSimple("res/pausedtex.tga", &pausedTex);
+	LoadTGATextureSimple("res/1stplace.tga", &newPlaceTex[0]);
+	LoadTGATextureSimple("res/2ndplace.tga", &newPlaceTex[1]);
+	LoadTGATextureSimple("res/3rdplace.tga", &newPlaceTex[2]);
+	LoadTGATextureSimple("res/4thplace.tga", &newPlaceTex[3]);
 
 	// Load textures
 	GLuint concrete, dirt, grass, fencetex,
@@ -877,7 +915,7 @@ void init(void)
 	LoadTGATextureSimple("res/conc.tga", &concrete);
 	LoadTGATextureSimple("res/dirt.tga", &dirt);
 	LoadTGATextureSimple("res/grass.tga", &grass);
-    LoadTGATextureSimple("res/old_fence_texture.tga", &fencetex);
+    LoadTGATextureSimple("res/fence2-tex.tga", &fencetex);
     LoadTGATextureSimple("res/barrel1-tex.tga", &barrel1);
 	LoadTGATextureSimple("res/barrel2-tex.tga", &barrel2);
 	LoadTGATextureSimple("res/car1-tex.tga", &car1);
@@ -1069,8 +1107,6 @@ void init(void)
 			5.0f);
 }
 
-int fogEnable = 1;
-
 void display(void)
 {
 	// clear the screen
@@ -1088,7 +1124,8 @@ void display(void)
 	GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
 	glUniform1f(glGetUniformLocation(program, "time"), t);
 
-	glUniform1i(glGetUniformLocation(program, "fogEnable"), fogEnable);
+	// The map camera cannot use fog
+	glUniform1i(glGetUniformLocation(program, "fogEnable"), fogEnable && camera_mode != CAMERA_ABOVE_MAP);
 
 	// Update light sources
 	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), MAX_LIGHTS, lightSourcesDirPosArr);
@@ -1133,6 +1170,8 @@ void keyboard(unsigned char key, int x, int y) {
 		fogEnable = !fogEnable;
 	} else if (key == 'c') {
 		camera_mode = (camera_mode + 1) % (CAMERA_MODE_LAST + 1);
+	} else if (key == 'b') {
+		cheats = !cheats;
 	}
 }
 
