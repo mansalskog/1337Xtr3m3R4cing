@@ -472,6 +472,10 @@ void drawEverything() {
 		glUniform1i(glGetUniformLocation(program, "thingType"), t->type);
 		glUniform1i(glGetUniformLocation(program, "hl_wp"), player->nextWaypoint);
 		DrawModel(t->model, program, "inPosition", "inNormal", "inTexCoord");
+
+		char buf[200];
+		sprintf(buf, "draw thing %d", i);
+		printError(buf);
 	}
 }
 
@@ -959,7 +963,7 @@ void init(void)
 	terrain = createThing(0, 0, 0,
 			THING_TERRAIN,
 			terrainMdl, IdentityMatrix(),
-			grass, dirt, grass, grass,
+			grass2, road2, grass, grass,
 			0.0f);
 
 	// Create waypoints
@@ -989,33 +993,54 @@ void init(void)
 	// Create fence around road
 	for (int i = 0; i < NUM_WAYPOINTS; i++) {
 		vec3 lastPoint;
+		vec3 beforeLastPoint;
 		if (i == 0) {
 			lastPoint = waypoints[NUM_WAYPOINTS-1];
+			beforeLastPoint = waypoints[NUM_WAYPOINTS-2];
+		} else if (i == 1) {
+			lastPoint = waypoints[0];
+			beforeLastPoint = waypoints[NUM_WAYPOINTS-1];
 		} else {
 			lastPoint = waypoints[i-1];
+			beforeLastPoint = waypoints[i-2];
 		}
 		vec3 v = VectorSub(waypoints[i], lastPoint);
 		float l = Norm(v);
 		v = Normalize(v);
 		vec3 u = Normalize(CrossProduct(v, terrain_normal_at(v.x, v.z)));
-		float t = 0.0f;
 		const float FENCE_WIDTH = 7.0f;
-		while (t + FENCE_WIDTH < l) {
+
+		float turn_angle = acos(DotProduct(
+					Normalize(VectorSub(waypoints[i], lastPoint)),
+					Normalize(VectorSub(lastPoint, beforeLastPoint))));
+		// Inner fence
+		float margin = fmax(0.0f, turn_angle) * 5.0f * FENCE_WIDTH;
+		float t = margin;
+		const float RADIUS = 4.0f;
+		while (t + margin < l) {
 			vec3 pos = VectorAdd(lastPoint, VectorAdd(ScalarMult(v, t), ScalarMult(u, 2.0f * ROAD_WIDTH)));
 			if (!isOnRoad(pos)) {
 				mat4 modelMat = Mult(Ry(M_PI / 2.0f + atan2(v.x, v.z)), S(0.1f, 0.1f, 0.1f));
-				float radius = 4.0f;
 				createThing(pos.x, terrain_height_at(pos.x, pos.z), pos.z,
 							THING_OBSTACLE,
 							fence, modelMat,
 							fencetex, concrete, concrete, concrete,
-							radius);
-				pos = VectorAdd(lastPoint, VectorAdd(ScalarMult(v, t), ScalarMult(u, -2.0f * ROAD_WIDTH)));
+							RADIUS);
+			}
+			t += FENCE_WIDTH;
+		}
+		margin = fmax(0.0f, -turn_angle) * 5.0f * FENCE_WIDTH;
+		t = margin;
+		// Outer fence
+		while (t + margin < l) {
+			vec3 pos = VectorAdd(lastPoint, VectorAdd(ScalarMult(v, t), ScalarMult(u, -2.0f * ROAD_WIDTH)));
+			if (!isOnRoad(pos)) {
+				mat4 modelMat = Mult(Ry(M_PI / 2.0f + atan2(v.x, v.z)), S(0.1f, 0.1f, 0.1f));
 				createThing(pos.x, terrain_height_at(pos.x, pos.z), pos.z,
 							THING_OBSTACLE,
 							fence, modelMat,
 							fencetex, concrete, concrete, concrete,
-							radius);
+							RADIUS);
 			}
 			t += FENCE_WIDTH;
 		}
