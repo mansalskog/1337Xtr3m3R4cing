@@ -119,12 +119,23 @@ void main(void)
 				vec3 u = worldPos - waypoints[i];
 				vec3 proj = dot(u, v) / dot(v, v) * v;
 				float d = dot(proj, v);
+				bool onRoad = false;
 				if (-dot(v, v) < d && d < 0.0 && length(u - proj) < ROAD_WIDTH + noise) {
-					color = texture(tex1, texCoord);
-					break;
+					onRoad = true;
+				} else if (length(u) < ROAD_WIDTH + noise) {
+					onRoad = true;
 				}
-				if (length(u) < ROAD_WIDTH + noise) {
-					color = texture(tex1, texCoord);
+				if (onRoad) {
+					// Draw goal line
+					if (i == 0 && length(proj) < 5.0) {
+						if (mod(length(u - proj), 4.0) < 2.0) { 
+							color = vec4(0.1, 0.1, 0.1, 1.0);
+						} else {
+							color = vec4(0.9, 0.9, 0.9, 1.0);
+						}
+					} else {
+						color = texture(tex1, texCoord);
+					}
 					break;
 				}
 			}

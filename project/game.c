@@ -17,6 +17,8 @@ const float TILE_WIDTH_X = 3.0;
 const float TILE_WIDTH_Z = 3.0;
 const float TILE_HEIGHT_Y = 0.5;
 
+void restart_game(void);
+
 ///// Utility functions /////
 
 vec3 normalForTriangle(
@@ -409,6 +411,16 @@ vec3 view_target;
 int oldNumCarsBefore = 0;
 float newPositionAlertStart = 0.0f;
 
+// Loaded assets
+
+// World textures
+GLuint concrete, dirt, grass, fencetex,
+	   barrel1, barrel2, car1, car2, car3, car4, fence1, fence2,
+	   grass1, grass2, road1, road2, stone1, stone2, tire1;
+
+// World models
+Model *sphere, *octagon, *car, *tree, *rock, *oildrum, *tires, *fence;
+
 // User interface textures
 GLuint currentPlaceTex[NUM_ENEMIES + 1];
 GLuint newPlaceTex[NUM_ENEMIES + 1];
@@ -522,8 +534,9 @@ int numberOfCarsBeforePlayer() {
 			} else if (t->laps == player->laps) {
 				if (t->nextWaypoint > player->nextWaypoint) {
 					before++;
-				} else if (t->nextWaypoint == player->nextWaypoint) {
-					vec3 wp = waypoints[t->nextWaypoint];
+				} else if (t->nextWaypoint == player->nextWaypoint || t->nextWaypoint + 1 == player->nextWaypoint) {
+					// This code assumes that PLAYER_WAYPOINT_SKIP == 2
+					vec3 wp = waypoints[player->nextWaypoint];
 					if (Norm(VectorSub(wp, t->pos)) < Norm(VectorSub(wp, player->pos))) {
 						before++;
 					}
@@ -565,6 +578,10 @@ void drawUserInterface() {
 		// Show alert for 0.5 seconds
 		drawTextureToScreen(newPlaceTex[numCarsBefore], Mult(S(1.0f, 0.5f, 1.0f), T(0.5f, 0.5f, 0.0f)));
 	}
+
+	// if (!paused && t - newLapAlert < 0.5f) {
+		// drawTextureToScreen(newPlaceTex[numCarsBefore], Mult(S(1.0f, 0.5f, 1.0f), T(0.5f, 0.5f, 0.0f)));
+	// }
 
 	if (paused) {
 		drawTextureToScreen(pausedTex, Mult(S(2.0f, 1.0f, 1.0f), T(0.75f, 0.0f, 0.0f)));
@@ -616,6 +633,12 @@ int isOnRoad(vec3 pos) {
 }
 
 void updateEverything(float delta_t) {
+	// Restart the race
+	if (player->laps == 2) {
+		restart_game();
+		return;
+	}
+
 	for (int i = 0; i < num_things; i++) {
 		struct thing *t = &things[i];
 		// Do gravity
@@ -690,11 +713,11 @@ void updateEverything(float delta_t) {
 										  delta_t * accel));
 			// Select new waypoint if close enough
 			if (Norm(v_to_wp) < WAYPOINT_DETECT_RADIUS / 2.0f) {
-				t->nextWaypoint = (t->nextWaypoint + PLAYER_WAYPOINT_SKIP) % NUM_WAYPOINTS;
 				if (t->nextWaypoint == 0) {
 					// We have gone around one time
 					t->laps++;
 				}
+				t->nextWaypoint = (t->nextWaypoint + 1) % NUM_WAYPOINTS;
 			}
 		}
 		// Update the player driving if on ground
@@ -748,12 +771,12 @@ void updateEverything(float delta_t) {
 							SetVector(0.83f, 0.67f, 0.22f),
 							1.0f);
 				}
-				// Player only needs to hit some waypoints
-				t->nextWaypoint = (t->nextWaypoint + PLAYER_WAYPOINT_SKIP) % NUM_WAYPOINTS;
 				if (t->nextWaypoint == 0) {
 					// Gone around one time, assuming that PLAYER_WAYPOINT_SKIP is a multiple of NUM_WAYPOINTS
 					t->laps++;
 				}
+				// Player only needs to hit some waypoints
+				t->nextWaypoint = (t->nextWaypoint + PLAYER_WAYPOINT_SKIP) % NUM_WAYPOINTS;
 			}
 		}
 		if (t->type == THING_ENEMY || t->type == THING_PLAYER) {
@@ -849,7 +872,7 @@ struct thing *createThing(float x, float y, float z,
 						  int type,
                           Model *model, mat4 baseMdlMatrix,
 						  GLuint tex0, GLuint tex1, GLuint tex2, GLuint tex3,
-						  float radius) {
+						  float radius, float angle_y) {
 	struct thing *t = &things[num_things++];
 	t->model = model;
 	t->textures[0] = tex0;
@@ -865,6 +888,7 @@ struct thing *createThing(float x, float y, float z,
 	t->laps = 0;
 	t->notMovedTime = 0.0f;
 	t->reverseTime = 0.0f;
+	t->angle_y = angle_y;
 	if (type == THING_ENEMY || type == THING_PLAYER) {
 		for (int i = 0; i < LIGHTS_PER_THING; i++) {
 			t->lightIndex[i] = lastLightIndex++;
@@ -922,11 +946,9 @@ void setCameraMatrix() {
 	glUniformMatrix4fv(glGetUniformLocation(program, "camMatrix"), 1, GL_TRUE, cameraMatrix.m);
 }
 
+// Setup OpenGL stuff and load models and textures
 void init(void)
 {
-	// Set random seed
-	srand(time(0));
-
 	// GL inits
 	glClearColor(FOG_COLOR);
 	glEnable(GL_DEPTH_TEST);
@@ -963,9 +985,6 @@ void init(void)
 	LoadTGATextureSimple("res/4thplace.tga", &newPlaceTex[3]);
 
 	// Load textures
-	GLuint concrete, dirt, grass, fencetex,
-        barrel1, barrel2, car1, car2, car3, car4, fence1, fence2,
-        grass1, grass2, road1, road2, stone1, stone2, tire1;
 	LoadTGATextureSimple("res/conc.tga", &concrete);
 	LoadTGATextureSimple("res/dirt.tga", &dirt);
 	LoadTGATextureSimple("res/grass.tga", &grass);
@@ -986,35 +1005,60 @@ void init(void)
 	LoadTGATextureSimple("res/stone2-tex.tga", &stone2);
     LoadTGATextureSimple("res/tire1-tex.tga", &tire1);
 
-
-	// Generate terrain model
-	Model *terrainMdl = terrain_generate_model();
-	printError("init terrain");
-
 	// Generate particle model
 	particle_model = generate_particle_model();
 	printError("init particle model");
 
 	// Load models
-	Model *sphere = LoadModel("res/groundsphere.obj");
-	Model *octagon = LoadModel("res/octagon.obj");
-	Model *car = LoadModel("res/artega_gt.obj");
-	Model *tree = LoadModel("res/cgaxis_models_115_37_obj.obj");
-	Model *rock = LoadModel("res/Rock_1.obj");
-	Model *oildrum = LoadModel("res/barrel.obj.obj");
-	Model *tires = LoadModel("res/wheel.obj");
-    Model *fence = LoadModel("res/old_fence.obj");
+	sphere = LoadModel("res/groundsphere.obj");
+	octagon = LoadModel("res/octagon.obj");
+	car = LoadModel("res/artega_gt.obj");
+	tree = LoadModel("res/cgaxis_models_115_37_obj.obj");
+	rock = LoadModel("res/Rock_1.obj");
+	oildrum = LoadModel("res/barrel.obj.obj");
+	tires = LoadModel("res/wheel.obj");
+    fence = LoadModel("res/old_fence.obj");
+}
+
+void restart_game(void) {
+	// Reset all global variables
+	num_things = 0;
+	idx_particle = 0;
+	// camera_mode = CAMERA_BEHIND_FAR;
+
+	paused = 1;
+	// cheats = 0;
+	// fogEnable = 1;
+
+	lastLightIndex = 0;
+
+	oldNumCarsBefore = 0;
+	newPositionAlertStart = 0.0f;
+
+	// Reset all global lists
+	memset(things, 0, sizeof *things * MAX_THINGS);
+	memset(particles, 0, sizeof *particles * MAX_PARTICLES);
+	// memset(waypoints, 0, sizeof *waypoints * NUM_WAYPOINTS);
+	memset(lightSourcesDirPosArr, 0, sizeof *lightSourcesDirPosArr * 3*MAX_LIGHTS);
+	memset(lightSourcesColorArr, 0, sizeof *lightSourcesColorArr * 3*MAX_LIGHTS);
+	memset(lightSourcesTypeArr, 0, sizeof *lightSourcesTypeArr * MAX_LIGHTS);
+
+	// Set random seed
+	srand(time(0));
 
 	// Create global lights
 	setLight(lastLightIndex++, SetVector(-1.0f, -1.0f, -1.0f), SetVector(0.94f, 0.56f, 0.22f), LIGHT_DIRECTION);
 	// setLight(lastLightIndex++, SetVector(10.0f, 10.0f, 10.0f), SetVector(1.0f, 1.0f, 1.0f), LIGHT_POSITION);
 
+	// Generate terrain model
+	Model *terrainMdl = terrain_generate_model();
 	// Create terrain (ground)
 	terrain = createThing(0, 0, 0,
 			THING_TERRAIN,
 			terrainMdl, IdentityMatrix(),
 			grass2, road2, grass, grass,
-			0.0f);
+			0.0f, 0.0f);
+	printError("init terrain");
 
 	// Create waypoints
 	float r = TERRAIN_WIDTH / 2.0f;
@@ -1075,7 +1119,7 @@ void init(void)
 							THING_OBSTACLE,
 							fence, modelMat,
 							fencetex, concrete, concrete, concrete,
-							RADIUS);
+							RADIUS, 0.0f);
 			}
 			t += FENCE_WIDTH;
 		}
@@ -1090,7 +1134,7 @@ void init(void)
 							THING_OBSTACLE,
 							fence, modelMat,
 							fencetex, concrete, concrete, concrete,
-							RADIUS);
+							RADIUS, 0.0f);
 			}
 			t += FENCE_WIDTH;
 		}
@@ -1148,7 +1192,7 @@ void init(void)
                     THING_OBSTACLE,
 					model, modelMatr,
 					tex, tex, tex, tex,
-					radius);
+					radius, 0.0f);
 	}
 
 	// Create enemies
@@ -1168,18 +1212,20 @@ void init(void)
 				tex = car3;
 				break;
 		}
-		createThing(x, waypoints[0].y + 5.0f, z,
+		float angle_to_wp = atan2(waypoints[1].z - z, waypoints[1].x - x);
+		createThing(x, waypoints[0].y, z,
 				THING_ENEMY,
 				car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
 				tex, tex, tex, tex,
-				5.0f);
+				5.0f, angle_to_wp);
 	}
 
-	player = createThing(waypoints[0].x, waypoints[0].y + 5.0f, waypoints[0].z,
+	float player_angle_to_wp = atan2(waypoints[1].z - waypoints[0].z, waypoints[1].x - waypoints[0].x);
+	player = createThing(waypoints[0].x, waypoints[0].y, waypoints[0].z,
 			THING_PLAYER,
 			car, Mult(S(2, 2, 2), Ry(M_PI / 2.0f)),
 			car4, car4, car4, car4,
-			5.0f);
+			5.0f, player_angle_to_wp);
 }
 
 void display(void)
@@ -1260,6 +1306,7 @@ int main(int argc, char **argv)
 	glutDisplayFunc(display);
 	glutKeyboardFunc(keyboard);
 	init();
+	restart_game();
 	glutTimerFunc(20, &timer, 0);
 
 	// glutHideCursor();
