@@ -56,11 +56,19 @@ vec3 angle_y_vec(float angle_y) {
 	return SetVector(cos(angle_y), 0.0f, sin(angle_y));
 }
 
+float clamp(float x, float min, float max) {
+	return fmaxf(min, fminf(x, max));
+}
+
+float normalize_angle(float angle) {
+	return asin(sin(angle));
+}
+
 ///// Terrain (heightmap) /////
 
 const float TERRAIN_WIDTH_FACTOR = 200.0f;
 const float TERRAIN_DEPTH_FACTOR = 200.0f;
-const float TERRAIN_HEIGHT_FACTOR = 15.0f;
+const float TERRAIN_HEIGHT_FACTOR = 25.0f;
 const int TERRAIN_WIDTH = 1000;
 const int TERRAIN_DEPTH = 1000;
 const float TERRAIN_TRIANGLE_SIZE = 2.0f;
@@ -308,6 +316,7 @@ Model *generate_particle_model() {
 // Minimum speed required to turn
 #define CAR_MIN_TURN_SPEED 3
 #define CAR_TURN_SPEED 0.8f
+#define ENEMY_TURN_SPEED 1.2f
 
 #define CAR_AIR_DRAG 0.10f
 #define CAR_AIR_DRAG_EXTRA 0.50f
@@ -344,6 +353,7 @@ Model *generate_particle_model() {
 
 struct thing {
 	vec3 pos;
+	vec3 lastPos;
 	vec3 vel;
 	float angle_y;
 	int type;
@@ -356,6 +366,9 @@ struct thing {
 	float radius;
 	int lightIndex[LIGHTS_PER_THING];
 	int laps;
+	float notMovedTime;
+	float reverseTime;
+	float reverseTurnAngle;
 };
 
 struct particle {
@@ -624,26 +637,59 @@ void updateEverything(float delta_t) {
 			// Turn towards next waypoint
 			vec3 v_to_wp = VectorSub(waypoints[t->nextWaypoint], t->pos);
 			float angle_to_wp = atan2(v_to_wp.z, v_to_wp.x);
-			const float DELTA = 0.05f;
-			if (fmod(t->angle_y, 2.0f*M_PI) < fmod(angle_to_wp - DELTA, 2.0f*M_PI)) {
-				t->angle_y += delta_t * CAR_TURN_SPEED;
-			} else if (fmod(t->angle_y, 2.0f*M_PI) > fmod(angle_to_wp + DELTA, 2.0f*M_PI)) {
-				t->angle_y -= delta_t * CAR_TURN_SPEED;
+			float angle_diff = normalize_angle(angle_to_wp - t->angle_y);
+			if (fabs(angle_diff) > 0.05f && t->reverseTime <= 0.0f) {
+				t->angle_y += clamp(angle_diff, -delta_t * ENEMY_TURN_SPEED, delta_t * ENEMY_TURN_SPEED);
 			}
-			t->angle_y = fmod(t->angle_y + angle_to_wp, 2.0f*M_PI) / 2.0f;
+
 			// Drive faster on road
 			float max_accel = CAR_ACCEL;
 			if (isOnRoad(t->pos)) {
 				max_accel = CAR_ROAD_ACCEL;
 			}
 			// """ PD - control system """
-			float accel = max_accel; // Norm(v_to_wp); // - Norm(t->vel);
-			accel = fmax(fmin(accel, max_accel), -CAR_BRAKE_ACCEL);
+			const float P = 10.0f;
+			const float D = 0.0f;
+			float accel = max_accel / 5.0f; // P * Norm(v_to_wp) + D * Norm(t->vel);
+			if (angle_diff < 0.10f) {
+				accel = max_accel;
+			}
+
+			// Check if we're stationary
+			if (Norm(VectorSub(t->pos, t->lastPos)) < delta_t * CAR_MAX_SPEED / 5.0f) {
+				t->notMovedTime += delta_t;
+			} else {
+				t->notMovedTime = 0.0f;
+			}
+			// If stationary for more than 3 seconds, start reversing
+			if (t->notMovedTime > 3.0f) {
+				t->reverseTime = 1.5f;
+				switch (rand() % 3) {
+					case 0:
+						t->reverseTurnAngle = -ENEMY_TURN_SPEED;
+						break;
+					case 1:
+						t->reverseTurnAngle = 0.0f;
+						break;
+					case 2:
+						t->reverseTurnAngle = ENEMY_TURN_SPEED;
+						break;
+				}
+			}
+			// Reverse if we're reversing (hack to make enemies not stuck)
+			if (t->reverseTime > 0.0f) {
+				accel = -CAR_BRAKE_ACCEL;
+				t->angle_y += t->reverseTurnAngle * delta_t;
+				t->reverseTime -= delta_t;
+			}
+
+			// Limit speed to maximum
+			accel = clamp(accel, -CAR_BRAKE_ACCEL, max_accel);
 			t->vel = VectorAdd(t->vel,
 							   ScalarMult(angle_y_vec(t->angle_y),
 										  delta_t * accel));
 			// Select new waypoint if close enough
-			if (Norm(v_to_wp) < 20.0f) {
+			if (Norm(v_to_wp) < WAYPOINT_DETECT_RADIUS / 2.0f) {
 				t->nextWaypoint = (t->nextWaypoint + PLAYER_WAYPOINT_SKIP) % NUM_WAYPOINTS;
 				if (t->nextWaypoint == 0) {
 					// We have gone around one time
@@ -740,6 +786,8 @@ void updateEverything(float delta_t) {
 					t->vel.y = y_vel;
 				}
 			}
+			// Save position before update
+			t->lastPos = t->pos;
 			t->pos = VectorAdd(t->pos, ScalarMult(t->vel, delta_t));
 
 			// Create smoke from tires
@@ -815,6 +863,8 @@ struct thing *createThing(float x, float y, float z,
     t->radius = radius;
 	t->nextWaypoint = 0;
 	t->laps = 0;
+	t->notMovedTime = 0.0f;
+	t->reverseTime = 0.0f;
 	if (type == THING_ENEMY || type == THING_PLAYER) {
 		for (int i = 0; i < LIGHTS_PER_THING; i++) {
 			t->lightIndex[i] = lastLightIndex++;
@@ -1014,10 +1064,10 @@ void init(void)
 					Normalize(VectorSub(waypoints[i], lastPoint)),
 					Normalize(VectorSub(lastPoint, beforeLastPoint))));
 		// Inner fence
-		float margin = fmax(0.0f, turn_angle) * 5.0f * FENCE_WIDTH;
+		float margin = sin(turn_angle) * 5.0f * FENCE_WIDTH;
 		float t = margin;
 		const float RADIUS = 4.0f;
-		while (t + margin < l) {
+		while (t + 2.0f * margin < l) {
 			vec3 pos = VectorAdd(lastPoint, VectorAdd(ScalarMult(v, t), ScalarMult(u, 2.0f * ROAD_WIDTH)));
 			if (!isOnRoad(pos)) {
 				mat4 modelMat = Mult(Ry(M_PI / 2.0f + atan2(v.x, v.z)), S(0.1f, 0.1f, 0.1f));
@@ -1029,7 +1079,7 @@ void init(void)
 			}
 			t += FENCE_WIDTH;
 		}
-		margin = fmax(0.0f, -turn_angle) * 5.0f * FENCE_WIDTH;
+		margin = sin(turn_angle) * 1.5f * FENCE_WIDTH;
 		t = margin;
 		// Outer fence
 		while (t + margin < l) {
