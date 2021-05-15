@@ -9,6 +9,10 @@
 #include "LittleOBJLoader.h"
 #include "LoadTGA.h"
 #include <time.h>
+#include <assert.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 const int WIN_WIDTH = 800;
 const int WIN_HEIGHT = 800;
@@ -353,6 +357,8 @@ Model *generate_particle_model() {
 #define LIGHT_DIRECTION 2
 #define LIGHTS_PER_THING 4
 
+#define NUM_OF_LAPS 3
+
 struct thing {
 	vec3 pos;
 	vec3 lastPos;
@@ -410,6 +416,10 @@ vec3 view_target;
 
 int oldNumCarsBefore = 0;
 float newPositionAlertStart = 0.0f;
+int oldPlayerLaps = 0;
+float newLapAlertStart = 0.0f;
+int racePosition = -1;
+float raceEndedAt = 0.0f;
 
 // Loaded assets
 
@@ -424,7 +434,8 @@ Model *sphere, *octagon, *car, *tree, *rock, *oildrum, *tires, *fence;
 // User interface textures
 GLuint currentPlaceTex[NUM_ENEMIES + 1];
 GLuint newPlaceTex[NUM_ENEMIES + 1];
-GLuint pausedTex;
+GLuint pausedTex, finishedTex;
+GLuint newLapTex[NUM_OF_LAPS];
 
 int seenByCamera(vec3 pos) {
 	// Check if angle is less than 90 degrees, which approximately is what we can see.
@@ -532,9 +543,10 @@ int numberOfCarsBeforePlayer() {
 			if (t->laps > player->laps) {
 				before++;
 			} else if (t->laps == player->laps) {
-				if (t->nextWaypoint > player->nextWaypoint) {
+				if ((t->nextWaypoint-1)%NUM_WAYPOINTS > (player->nextWaypoint-1)%NUM_WAYPOINTS) {
 					before++;
-				} else if (t->nextWaypoint == player->nextWaypoint || t->nextWaypoint + 1 == player->nextWaypoint) {
+				} else if ((t->nextWaypoint-1)%NUM_WAYPOINTS == (player->nextWaypoint-1)%NUM_WAYPOINTS) {
+						// || (t->nextWaypoint + 1) % NUM_WAYPOINTS == player->nextWaypoint) {
 					// This code assumes that PLAYER_WAYPOINT_SKIP == 2
 					vec3 wp = waypoints[player->nextWaypoint];
 					if (Norm(VectorSub(wp, t->pos)) < Norm(VectorSub(wp, player->pos))) {
@@ -571,21 +583,29 @@ void drawUserInterface() {
 
 	GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
 	if (numCarsBefore != oldNumCarsBefore) {
+		// pretty ugly code, update show a message if the position changes
 		oldNumCarsBefore = numCarsBefore;
 		newPositionAlertStart = t;
 	}
-	if (!paused && t - newPositionAlertStart < 0.5f) {
-		// Show alert for 0.5 seconds
+	if (player->laps != oldPlayerLaps) {
+		oldPlayerLaps = player->laps;
+		newLapAlertStart = t;
+	}
+
+	if (paused) {
+		// Show pause "menu"
+		drawTextureToScreen(pausedTex, Mult(S(2.0f, 1.0f, 1.0f), T(0.75f, 0.0f, 0.0f)));
+	} else if (racePosition != -1) {
+		// Show race end text
+		drawTextureToScreen(finishedTex, Mult(S(1.0f, 0.5f, 1.0f), T(0.65f, 0.5f, 0.0f)));
+	} else if (t - newLapAlertStart < 0.5f && player->laps - 1 < NUM_OF_LAPS) {
+		// Show new lap alert for 0.5 seconds
+		drawTextureToScreen(newLapTex[player->laps - 1], Mult(S(1.0f, 0.5f, 1.0f), T(0.5f, 0.5f, 0.0f)));
+	} else if (t - newPositionAlertStart < 0.5f) {
+		// Show new position alert for 0.5 seconds
 		drawTextureToScreen(newPlaceTex[numCarsBefore], Mult(S(1.0f, 0.5f, 1.0f), T(0.5f, 0.5f, 0.0f)));
 	}
 
-	// if (!paused && t - newLapAlert < 0.5f) {
-		// drawTextureToScreen(newPlaceTex[numCarsBefore], Mult(S(1.0f, 0.5f, 1.0f), T(0.5f, 0.5f, 0.0f)));
-	// }
-
-	if (paused) {
-		drawTextureToScreen(pausedTex, Mult(S(2.0f, 1.0f, 1.0f), T(0.75f, 0.0f, 0.0f)));
-	}
 
 	glUniform1i(glGetUniformLocation(program, "isUserInterface"), 0);
 }
@@ -634,7 +654,13 @@ int isOnRoad(vec3 pos) {
 
 void updateEverything(float delta_t) {
 	// Restart the race
-	if (player->laps == 2) {
+	float time = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	if (player->laps == NUM_OF_LAPS + 1 && racePosition == -1) {
+		raceEndedAt = time;
+		racePosition = numberOfCarsBeforePlayer();
+	}
+	if (racePosition != -1 && time - raceEndedAt > 3.0f) {
+		printf("RESTARTNG GAME!!!!!\n");
 		restart_game();
 		return;
 	}
@@ -1004,6 +1030,10 @@ void init(void)
 	LoadTGATextureSimple("res/stone1-tex.tga", &stone1);
 	LoadTGATextureSimple("res/stone2-tex.tga", &stone2);
     LoadTGATextureSimple("res/tire1-tex.tga", &tire1);
+    LoadTGATextureSimple("res/finished.tga", &finishedTex);
+    LoadTGATextureSimple("res/lap1.tga", &newLapTex[0]);
+    LoadTGATextureSimple("res/lap2.tga", &newLapTex[1]);
+    LoadTGATextureSimple("res/lap3.tga", &newLapTex[2]);
 
 	// Generate particle model
 	particle_model = generate_particle_model();
@@ -1022,6 +1052,8 @@ void init(void)
 
 void restart_game(void) {
 	// Reset all global variables
+	racePosition = -1;
+
 	num_things = 0;
 	idx_particle = 0;
 	// camera_mode = CAMERA_BEHIND_FAR;
@@ -1034,6 +1066,9 @@ void restart_game(void) {
 
 	oldNumCarsBefore = 0;
 	newPositionAlertStart = 0.0f;
+
+	oldPlayerLaps = 0;
+	newLapAlertStart = 0.0f;
 
 	// Reset all global lists
 	memset(things, 0, sizeof *things * MAX_THINGS);
