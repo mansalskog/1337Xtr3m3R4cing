@@ -1145,7 +1145,7 @@ void restart_game(void) {
 		// Inner fence
 		float margin = sin(turn_angle) * 5.0f * FENCE_WIDTH;
 		float t = margin;
-		const float RADIUS = 4.0f;
+		const float RADIUS = 2.0f;
 		while (t + 2.0f * margin < l) {
 			vec3 pos = VectorAdd(lastPoint, VectorAdd(ScalarMult(v, t), ScalarMult(u, 2.0f * ROAD_WIDTH)));
 			if (!isOnRoad(pos)) {
@@ -1200,7 +1200,7 @@ void restart_game(void) {
 		switch (rand() % max_rng) {
 			case 0:
 				model = oildrum;
-				radius = 8.0f;
+				radius = 3.0f;
 				modelMatr = S(0.5f, 0.5f, 0.5f);
                 tex = barrel1;
 				break;
@@ -1212,13 +1212,13 @@ void restart_game(void) {
 				break;
 			case 2:
 				model = tree;
-				radius = 4.0f;
+				radius = 2.0f;
 				modelMatr = S(0.5f, 0.5f, 0.5f);
                 tex = grass1;
 				break;
 			case 3:
 				model = rock;
-				radius = 10.0f;
+				radius = 4.0f;
 				modelMatr = S(0.3f, 0.3f, 0.3f);
                 tex = stone1;
 				break;
