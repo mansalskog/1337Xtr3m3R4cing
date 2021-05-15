@@ -38,8 +38,11 @@ uniform int hl_wp;
 #define THING_PLAYER 2
 uniform int thingType;
 
-uniform bool isParticle;
-uniform bool isUserInterface;
+#define SHADER_THING 0
+#define SHADER_PARTICLE 1
+#define SHADER_USER_INTERFACE 2
+#define SHADER_SKYBOX 3
+uniform int shaderMode;
 
 uniform float particleLifetime;
 uniform vec3 particleColor;
@@ -142,21 +145,22 @@ void main(void)
 		}
 	}
 
-	outColor = color * totalLight;
+	if (shaderMode == SHADER_THING) {
+		// Regular texturing and lighting
+		outColor = color * totalLight;
 
-	float fogStartDist = FAR_PLANE_DIST - FOG_FADE_DIST;
-	if (fogEnable && length(viewPos) > fogStartDist) {
-		// Fade out over FOG_FADE_DIST units
-		float t = (length(viewPos) - fogStartDist) / FOG_FADE_DIST;
-		t = smoothstep(0.0, 1.0, t);
-		outColor = mix(outColor, vec4(FOG_COLOR), t);
-	}
-
-	if (isParticle) {
+		float fogStartDist = FAR_PLANE_DIST - FOG_FADE_DIST;
+		if (fogEnable && length(viewPos) > fogStartDist) {
+			// Fade out over FOG_FADE_DIST units
+			float t = (length(viewPos) - fogStartDist) / FOG_FADE_DIST;
+			t = smoothstep(0.0, 1.0, t);
+			outColor = mix(outColor, vec4(FOG_COLOR), t);
+		}
+	} else if (shaderMode == SHADER_PARTICLE) {
 		// Skip texture, use plain color
 		float alpha = 0.8 * clamp(particleLifetime, 0.0, 1.0);
 		outColor = vec4(particleColor, alpha) * totalLight;
-	} else if (isUserInterface) {
+	} else if (shaderMode == SHADER_USER_INTERFACE || shaderMode == SHADER_SKYBOX) {
 		// Skip all lighting, just use the texture
 		outColor = texture(tex0, texCoord);
 	}

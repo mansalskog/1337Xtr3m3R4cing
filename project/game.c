@@ -112,6 +112,14 @@ float terrain_height_at(float x, float z) {
 	float d10 = terrain_dot_gradient(x0+1, z0, x, z);
 	float d11 = terrain_dot_gradient(x0+1, z0+1, x, z);
 
+	// Make steeper hills outside a certain radius
+	float r = sqrt(x * x + z * z);
+	const float R = 800.0f;
+	float extra_height_factor = 1.0f;
+	if (r > R) {
+		extra_height_factor = pow(1.0f + r - R, 8);
+	}
+
 	return TERRAIN_HEIGHT_FACTOR * smoothstep(smoothstep(d00, d10, dx), smoothstep(d01, d11, dx), dz);
 }
 
@@ -311,6 +319,12 @@ Model *generate_particle_model() {
 #define THING_PLAYER 2
 #define THING_OBSTACLE 3
 
+// Different modes for shaders
+#define SHADER_THING 0
+#define SHADER_PARTICLE 1
+#define SHADER_USER_INTERFACE 2
+#define SHADER_SKYBOX 3
+
 #define GRAVITY_ACCEL 30
 
 #define CAR_ACCEL 100
@@ -336,7 +350,7 @@ Model *generate_particle_model() {
 #define CAMERA_MODE_LAST 5
 
 #define FAR_PLANE_DIST 1500.0f
-#define FOG_COLOR 0.86, 0.86, 0.89, 0.0
+#define FOG_COLOR 0.47, 0.49, 0.25, 0.0
 
 // Max particles must be at least NUM_ENEMIES * particle lifetime * particles per car = 5 * 4 * 50
 #define MAX_PARTICLES 10000
@@ -427,9 +441,11 @@ float raceEndedAt = 0.0f;
 GLuint concrete, dirt, grass, fencetex,
 	   barrel1, barrel2, car1, car2, car3, car4, fence1, fence2,
 	   grass1, grass2, road1, road2, stone1, stone2, tire1;
+GLuint skyboxTex;
 
 // World models
 Model *sphere, *octagon, *car, *tree, *rock, *oildrum, *tires, *fence;
+Model *skybox;
 
 // User interface textures
 GLuint currentPlaceTex[NUM_ENEMIES + 1];
@@ -460,6 +476,7 @@ void setLight(int index, vec3 posDir, vec3 color, int type) {
 }
 
 void drawEverything() {
+	glUniform1i(glGetUniformLocation(program, "shaderMode"), SHADER_THING);
 	for (int i = 0; i < num_things; i++) {
 		struct thing *t = &things[i];
 
@@ -516,7 +533,7 @@ void drawEverything() {
 }
 
 void drawParticles() {
-	glUniform1i(glGetUniformLocation(program, "isParticle"), 1);
+	glUniform1i(glGetUniformLocation(program, "shaderMode"), SHADER_PARTICLE);
 	for (int i = 0; i < MAX_PARTICLES; i++) {
 		struct particle *p = &particles[i];
 
@@ -532,7 +549,6 @@ void drawParticles() {
 			DrawModel(particle_model, program, "inPosition", "inNormal", "inTexCoord");
 		}
 	}
-	glUniform1i(glGetUniformLocation(program, "isParticle"), 0);
 }
 
 int numberOfCarsBeforePlayer() {
@@ -573,7 +589,7 @@ void drawTextureToScreen(GLuint texture, mat4 transfMatrix) {
 }
 
 void drawUserInterface() {
-	glUniform1i(glGetUniformLocation(program, "isUserInterface"), 1);
+	glUniform1i(glGetUniformLocation(program, "shaderMode"), SHADER_USER_INTERFACE);
 
 	int numCarsBefore = numberOfCarsBeforePlayer();
 	if (numCarsBefore < 0 || NUM_ENEMIES < numCarsBefore) {
@@ -605,9 +621,25 @@ void drawUserInterface() {
 		// Show new position alert for 0.5 seconds
 		drawTextureToScreen(newPlaceTex[numCarsBefore], Mult(S(1.0f, 0.5f, 1.0f), T(0.5f, 0.5f, 0.0f)));
 	}
+}
 
+void drawSkybox() {
+	glUniform1i(glGetUniformLocation(program, "shaderMode"), SHADER_SKYBOX);
+	glDisable(GL_DEPTH_TEST);
 
-	glUniform1i(glGetUniformLocation(program, "isUserInterface"), 0);
+	mat4 transfMatr = IdentityMatrix();
+	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, transfMatr.m);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, skyboxTex);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, skyboxTex);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, skyboxTex);
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, skyboxTex);
+	DrawModel(skybox, program, "inPosition", "inNormal", "inTexCoord");
+
+	glEnable(GL_DEPTH_TEST);
 }
 
 void addParticle(vec3 pos, vec3 vel, float lifetime, vec3 color, float size) {
@@ -1034,6 +1066,7 @@ void init(void)
     LoadTGATextureSimple("res/lap1.tga", &newLapTex[0]);
     LoadTGATextureSimple("res/lap2.tga", &newLapTex[1]);
     LoadTGATextureSimple("res/lap3.tga", &newLapTex[2]);
+    LoadTGATextureSimple("res/SkyBox512.tga", &skyboxTex);
 
 	// Generate particle model
 	particle_model = generate_particle_model();
@@ -1048,6 +1081,7 @@ void init(void)
 	oildrum = LoadModel("res/barrel.obj.obj");
 	tires = LoadModel("res/wheel.obj");
     fence = LoadModel("res/old_fence.obj");
+	skybox = LoadModel("res/skybox.obj");
 }
 
 void restart_game(void) {
@@ -1280,13 +1314,16 @@ void display(void)
 	GLfloat t = (GLfloat) glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
 	glUniform1f(glGetUniformLocation(program, "time"), t);
 
-	// The map camera cannot use fog
-	glUniform1i(glGetUniformLocation(program, "fogEnable"), fogEnable && camera_mode != CAMERA_ABOVE_MAP);
+	// Never use fog, skybox instead
+	glUniform1i(glGetUniformLocation(program, "fogEnable"), 0);
 
 	// Update light sources
 	glUniform3fv(glGetUniformLocation(program, "lightSourcesDirPosArr"), MAX_LIGHTS, lightSourcesDirPosArr);
 	glUniform3fv(glGetUniformLocation(program, "lightSourcesColorArr"), MAX_LIGHTS, lightSourcesColorArr);
 	glUniform1iv(glGetUniformLocation(program, "lightSourcesTypeArr"), MAX_LIGHTS, lightSourcesTypeArr);
+
+	drawSkybox();
+	printError("drawSkybox");
 
 	drawEverything();
 	printError("drawEverything");
