@@ -559,10 +559,12 @@ int numberOfCarsBeforePlayer() {
 			if (t->laps > player->laps) {
 				before++;
 			} else if (t->laps == player->laps) {
-				if ((t->nextWaypoint-1)%NUM_WAYPOINTS > (player->nextWaypoint-1)%NUM_WAYPOINTS) {
+				if ((t->nextWaypoint == 0 && player->nextWaypoint != 0) ||
+					(t->nextWaypoint > player->nextWaypoint && player->nextWaypoint != 0)) {
+					// Compare t->nextWaypoint and player->nextWaypoint, but use the order 1 < 2 < ... < NUM_OF_WAYPOINTS-1 < 0
 					before++;
-				} else if ((t->nextWaypoint-1)%NUM_WAYPOINTS == (player->nextWaypoint-1)%NUM_WAYPOINTS) {
-						// || (t->nextWaypoint + 1) % NUM_WAYPOINTS == player->nextWaypoint) {
+				} else if (t->nextWaypoint == player->nextWaypoint
+						|| (t->nextWaypoint + 1) % NUM_WAYPOINTS == player->nextWaypoint) {
 					// This code assumes that PLAYER_WAYPOINT_SKIP == 2
 					vec3 wp = waypoints[player->nextWaypoint];
 					if (Norm(VectorSub(wp, t->pos)) < Norm(VectorSub(wp, player->pos))) {
@@ -613,6 +615,7 @@ void drawUserInterface() {
 		drawTextureToScreen(pausedTex, Mult(S(2.0f, 1.0f, 1.0f), T(0.75f, 0.0f, 0.0f)));
 	} else if (racePosition != -1) {
 		// Show race end text
+		drawTextureToScreen(currentPlaceTex[racePosition], Mult(S(1.0f, 0.5f, 1.0f), T(0.75f, -0.25f, 0.0f)));
 		drawTextureToScreen(finishedTex, Mult(S(1.0f, 0.5f, 1.0f), T(0.65f, 0.5f, 0.0f)));
 	} else if (t - newLapAlertStart < 0.5f && player->laps - 1 < NUM_OF_LAPS) {
 		// Show new lap alert for 0.5 seconds
@@ -692,7 +695,6 @@ void updateEverything(float delta_t) {
 		racePosition = numberOfCarsBeforePlayer();
 	}
 	if (racePosition != -1 && time - raceEndedAt > 3.0f) {
-		printf("RESTARTNG GAME!!!!!\n");
 		restart_game();
 		return;
 	}
