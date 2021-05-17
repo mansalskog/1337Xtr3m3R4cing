@@ -8,7 +8,7 @@
 #include "MicroGlut.h"
 #include "GL_utilities.h"
 #include "VectorUtils3.h"
-#include "loadobj.h"
+#include "LittleOBJLoader.h"
 #include "LoadTGA.h"
 
 mat4 projectionMatrix;
@@ -18,27 +18,26 @@ Model* GenerateTerrain(TextureData *tex)
 	int vertexCount = tex->width * tex->height;
 	int triangleCount = (tex->width-1) * (tex->height-1) * 2;
 	GLuint x, z;
-	
-	GLfloat *vertexArray = malloc(sizeof(GLfloat) * 3 * vertexCount);
-	GLfloat *normalArray = malloc(sizeof(GLfloat) * 3 * vertexCount);
-	GLfloat *texCoordArray = malloc(sizeof(GLfloat) * 2 * vertexCount);
-	GLuint *indexArray = malloc(sizeof(GLuint) * triangleCount*3);
-	
+
+	vec3 *vertexArray = malloc(sizeof(vec3) * vertexCount);
+	vec3 *normalArray = malloc(sizeof(vec3) * vertexCount);
+	vec2 *texCoordArray = malloc(sizeof(vec2) * vertexCount);
+	GLuint *indexArray = malloc(sizeof(GLuint) * triangleCount * 3);
+
 	printf("bpp %d\n", tex->bpp);
 	for (x = 0; x < tex->width; x++)
 		for (z = 0; z < tex->height; z++)
 		{
 // Vertex array. You need to scale this properly
-			vertexArray[(x + z * tex->width)*3 + 0] = x / 1.0;
-			vertexArray[(x + z * tex->width)*3 + 1] = tex->imageData[(x + z * tex->width) * (tex->bpp/8)] / 100.0;
-			vertexArray[(x + z * tex->width)*3 + 2] = z / 1.0;
+			vertexArray[x + z * tex->width] = SetVector(
+					x / 1.0,
+					tex->imageData[(x + z * tex->width) * (tex->bpp/8)] / 100.0,
+					z / 1.0);
 // Normal vectors. You need to calculate these.
-			normalArray[(x + z * tex->width)*3 + 0] = 0.0;
-			normalArray[(x + z * tex->width)*3 + 1] = 1.0;
-			normalArray[(x + z * tex->width)*3 + 2] = 0.0;
+			normalArray[x + z * tex->width] = SetVector(0.0, 1.0, 0.0);
 // Texture coordinates. You may want to scale them.
-			texCoordArray[(x + z * tex->width)*2 + 0] = x; // (float)x / tex->width;
-			texCoordArray[(x + z * tex->width)*2 + 1] = z; // (float)z / tex->height;
+			texCoordArray[x + z * tex->width].x = x; // (float)x / tex->width;
+			texCoordArray[x + z * tex->width].y = z; // (float)z / tex->height;
 		}
 	for (x = 0; x < tex->width-1; x++)
 		for (z = 0; z < tex->height-1; z++)
@@ -52,9 +51,9 @@ Model* GenerateTerrain(TextureData *tex)
 			indexArray[(x + z * (tex->width-1))*6 + 4] = x + (z+1) * tex->width;
 			indexArray[(x + z * (tex->width-1))*6 + 5] = x+1 + (z+1) * tex->width;
 		}
-	
+
 	// End of terrain generation
-	
+
 	// Create Model and upload to GPU:
 
 	Model* model = LoadDataToModel(
@@ -91,45 +90,49 @@ void init(void)
 	program = loadShaders("terrain.vert", "terrain.frag");
 	glUseProgram(program);
 	printError("init shader");
-	
+
 	glUniformMatrix4fv(glGetUniformLocation(program, "projMatrix"), 1, GL_TRUE, projectionMatrix.m);
 	glUniform1i(glGetUniformLocation(program, "tex"), 0); // Texture unit 0
 	LoadTGATextureSimple("maskros512.tga", &tex1);
-	
+
 // Load terrain data
-	
+
 	LoadTGATextureData("44-terrain.tga", &ttex);
 	tm = GenerateTerrain(&ttex);
 	printError("init terrain");
 }
 
+const vec3 up_vector = {0.0, 1.0, 0.0};
+vec3 view_target;
+vec3 view_pos;
+
 void display(void)
 {
 	// clear the screen
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	
+
 	mat4 total, modelView, camMatrix;
-	
+
 	printError("pre display");
-	
+
 	glUseProgram(program);
 
 	// Build matrix
-	
+
 	vec3 cam = {0, 5, 8};
 	vec3 lookAtPoint = {2, 0, 2};
 	camMatrix = lookAt(cam.x, cam.y, cam.z,
-				lookAtPoint.x, lookAtPoint.y, lookAtPoint.z,
-				0.0, 1.0, 0.0);
+					   lookAtPoint.x, lookAtPoint.y, lookAtPoint.z,
+					   0.0, 1.0, 0.0);
 	modelView = IdentityMatrix();
 	total = Mult(camMatrix, modelView);
 	glUniformMatrix4fv(glGetUniformLocation(program, "mdlMatrix"), 1, GL_TRUE, total.m);
-	
+
 	glBindTexture(GL_TEXTURE_2D, tex1);		// Bind Our Texture tex1
 	DrawModel(tm, program, "inPosition", "inNormal", "inTexCoord");
 
 	printError("display 2");
-	
+
 	glutSwapBuffers();
 }
 
@@ -141,7 +144,7 @@ void timer(int i)
 
 void mouse(int x, int y)
 {
-	printf("%d %d\n", x, y);
+	// printf("%d %d\n", x, y);
 }
 
 int main(int argc, char **argv)

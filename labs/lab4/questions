@@ -1,0 +1,27 @@
+1. What kind of data does the heightmap image data hold? What range is the heightmap data?
+8-bit RGB pixels that are grayscale. 0-255 is the range.
+
+1. The terrain is 4x4. How many polygons does it draw?
+3 * 3 squares = 3 * 3 * 2 triangles = 18 triangles
+
+2. Did you need to extend your camera movement code? How?
+Added mouse look.
+
+3. Which method did you use to find the normal vector?
+High precision version. With weighed average on angle. Edges are ok.
+
+4. How did you figure out what surface to use?
+Used floor function on x and z, then checked on which side of the line x+z=1 it was on.
+
+4. How did you calculate the height from the surface?
+Used the plane equation y=dot(((x0,y0,z0),normal)-x*normal.x-z*normal.z)/normal.y
+
+5. What kind of multitexturing function did you implement?
+Snow and a lake.
+
+6b. How did you apply the slope on objects?
+Used Gram-Schmidt to get an ON-transformation matrix that takes (0,1,0) to the normal vector
+of the triangle the object is currently on.
+
+6c. How did you identify the water surface?
+If y is lower than 5.
