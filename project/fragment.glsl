@@ -107,39 +107,40 @@ void main(void)
 		if (length(offset) < WAYPOINT_DETECT_RADIUS && length(offset) > WAYPOINT_DETECT_RADIUS * 0.9) {
 			color = vec4(0.83, 0.67, 0.22, 1.0);
 		} else {
-			// Generate noise to get smoother edges
-			float noise = 2.0 * fract(sin(dot(worldPos.xz, vec2(12.9898,78.233))) * 43758.5453);
-
-			// Draw the road
-			for (int i = 0; i < NUM_WAYPOINTS; i++) {
-				// Line segment from waypoints[i-1] to waypoints[i]
-				vec3 v;
-				if (i == 0) {
-					v = waypoints[i] - waypoints[NUM_WAYPOINTS-1];
+			// Draw the goal line
+			vec3 v = (normalize(waypoints[1] - waypoints[0]) + normalize(waypoints[0] - waypoints[NUM_WAYPOINTS-1])) / 2.0;
+			vec3 u = worldPos - waypoints[0];
+			vec3 proj = dot(u, v) / dot(v, v) * v;
+			// Draw goal line
+			if (length(proj) < 5.0 && length(u - proj) < ROAD_WIDTH + 2.0) {
+				if (mod(length(u - proj), 4.0) < 2.0) { 
+					color = vec4(0.1, 0.1, 0.1, 1.0);
 				} else {
-					v = waypoints[i] - waypoints[i-1];
+					color = vec4(0.9, 0.9, 0.9, 1.0);
 				}
-				vec3 u = worldPos - waypoints[i];
-				vec3 proj = dot(u, v) / dot(v, v) * v;
-				float d = dot(proj, v);
-				bool onRoad = false;
-				if (-dot(v, v) < d && d < 0.0 && length(u - proj) < ROAD_WIDTH + noise) {
-					onRoad = true;
-				} else if (length(u) < ROAD_WIDTH + noise) {
-					onRoad = true;
-				}
-				if (onRoad) {
-					// Draw goal line
-					if (i == 0 && length(proj) < 5.0) {
-						if (mod(length(u - proj), 4.0) < 2.0) { 
-							color = vec4(0.1, 0.1, 0.1, 1.0);
-						} else {
-							color = vec4(0.9, 0.9, 0.9, 1.0);
-						}
+			} else {
+				// Generate noise to get smoother edges
+				float noise = 2.0 * fract(sin(dot(worldPos.xz, vec2(12.9898,78.233))) * 43758.5453);
+				// Draw the road
+				for (int i = 0; i < NUM_WAYPOINTS; i++) {
+					// Line segment from waypoints[i-1] to waypoints[i]
+					vec3 v;
+					if (i == 0) {
+						v = waypoints[i] - waypoints[NUM_WAYPOINTS-1];
 					} else {
-						color = texture(tex1, texCoord);
+						v = waypoints[i] - waypoints[i-1];
 					}
-					break;
+					vec3 u = worldPos - waypoints[i];
+					vec3 proj = dot(u, v) / dot(v, v) * v;
+					float d = dot(proj, v);
+					bool onRoad = false;
+					if (-dot(v, v) < d && d < 0.0 && length(u - proj) < ROAD_WIDTH + noise) {
+						color = texture(tex1, texCoord);
+						break;
+					} else if (length(u) < ROAD_WIDTH + noise) {
+						color = texture(tex1, texCoord);
+						break;
+					}
 				}
 			}
 		}

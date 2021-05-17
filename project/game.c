@@ -120,7 +120,7 @@ float terrain_height_at(float x, float z) {
 		extra_height_factor = pow(1.0f + r - R, 8);
 	}
 
-	return TERRAIN_HEIGHT_FACTOR * smoothstep(smoothstep(d00, d10, dx), smoothstep(d01, d11, dx), dz);
+	return extra_height_factor * TERRAIN_HEIGHT_FACTOR * smoothstep(smoothstep(d00, d10, dx), smoothstep(d01, d11, dx), dz);
 }
 
 vec3 terrain_normal_at(float x, float z) {
@@ -695,6 +695,10 @@ void updateEverything(float delta_t) {
 		racePosition = numberOfCarsBeforePlayer();
 	}
 	if (racePosition != -1 && time - raceEndedAt > 3.0f) {
+		restart_game();
+		return;
+	}
+	if (glutKeyIsDown('u')) {
 		restart_game();
 		return;
 	}
