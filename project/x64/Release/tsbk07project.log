@@ -1,0 +1,14 @@
+﻿  GL_utilities.c
+  LittleOBJLoader.c
+  LoadTGA.c
+  VectorUtils3.c
+  glew.c
+  MicroGlut.c
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\windows\MicroGlut.c(176,41): warning C4311: 'type cast': pointer truncation from 'HANDLE' to 'long'
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\windows\MicroGlut.c(211,74): warning C4133: 'function': incompatible types - from 'TCHAR *' to 'LPWSTR'
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\windows\MicroGlut.c(364,46): warning C4047: 'function': 'LPWORD' differs in levels of indirection from 'unsigned char (*)[2]'
+  game.c
+  Generating Code...
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\windows\MicroGlut.c(364,46): warning C4024: 'ToAsciiEx': different types for formal and actual parameter 4
+LINK : warning LNK4031: no subsystem specified; CONSOLE assumed
+  tsbk07project.vcxproj -> C:\Users\manal270.AD\source\repos\tsbk07\project\x64\Release\tsbk07project.exe

@@ -1,0 +1,95 @@
+﻿  GL_utilities.c
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\GL_utilities.c(74,1): warning C4996: 'sprintf': This function or variable may be unsafe. Consider using sprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.18362.0\ucrt\stdio.h(1774): message : see declaration of 'sprintf'
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\GL_utilities.c(108,1): warning C4996: 'sprintf': This function or variable may be unsafe. Consider using sprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.18362.0\ucrt\stdio.h(1774): message : see declaration of 'sprintf'
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\GL_utilities.c(111,1): warning C4996: 'sprintf': This function or variable may be unsafe. Consider using sprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.18362.0\ucrt\stdio.h(1774): message : see declaration of 'sprintf'
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\GL_utilities.c(114,1): warning C4996: 'sprintf': This function or variable may be unsafe. Consider using sprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.18362.0\ucrt\stdio.h(1774): message : see declaration of 'sprintf'
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\GL_utilities.c(116,1): warning C4996: 'sprintf': This function or variable may be unsafe. Consider using sprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+  LittleOBJLoader.c
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.18362.0\ucrt\stdio.h(1774): message : see declaration of 'sprintf'
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(477,9): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(479,9): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(486,9): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(488,9): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(666,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(667,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(668,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(674,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(676,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(678,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(810,11): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(811,11): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(812,11): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(813,11): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(814,11): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(815,11): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+  LoadTGA.c
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LittleOBJLoader.c(816,11): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LoadTGA.c(114,11): warning C4018: '<': signed/unsigned mismatch
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LoadTGA.c(116,11): warning C4018: '<': signed/unsigned mismatch
+  VectorUtils3.c
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\LoadTGA.c(189,10): warning C4018: '>=': signed/unsigned mismatch
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\VectorUtils3.c(711,54): warning C4244: 'function': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\VectorUtils3.c(714,52): warning C4244: 'function': conversion from 'double' to 'float', possible loss of data
+  glew.c
+  MicroGlut.c
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\VectorUtils3.c(719,52): warning C4244: 'function': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\windows\MicroGlut.c(211,74): warning C4133: 'function': incompatible types - from 'TCHAR *' to 'LPWSTR'
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\windows\MicroGlut.c(364,46): warning C4047: 'function': 'LPWORD' differs in levels of indirection from 'unsigned char (*)[2]'
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\windows\MicroGlut.c(364,46): warning C4024: 'ToAsciiEx': different types for formal and actual parameter 4
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\windows\MicroGlut.c(541,6): warning C4013: 'main' undefined; assuming extern returning int
+  game.c
+C:\Users\manal270.AD\source\repos\tsbk07\project\common\windows\MicroGlut.c(719,6): warning C4101: 'windowHDC': unreferenced local variable
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(58,28): warning C4244: 'return': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(62,31): warning C4244: 'function': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(62,51): warning C4244: 'function': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(70,25): warning C4244: 'return': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(85,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(87,1): warning C4244: 'initializing': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(120,45): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(116,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(127,1): warning C4305: 'initializing': truncation from 'double' to 'const float'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(138,7): warning C4101: 'npm': unreferenced local variable
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(194,46): warning C4244: '=': conversion from 'int' to 'GLfloat', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(195,46): warning C4244: '=': conversion from 'int' to 'GLfloat', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(530,1): warning C4996: 'sprintf': This function or variable may be unsafe. Consider using sprintf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.18362.0\ucrt\stdio.h(1774): message : see declaration of 'sprintf'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(828,47): warning C4305: 'function': truncation from 'double' to 'float'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(872,119): warning C4244: 'function': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(726,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1017,15): warning C4305: 'function': truncation from 'double' to 'GLclampf'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1026,33): warning C4305: 'function': truncation from 'double' to 'float'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1026,38): warning C4305: 'function': truncation from 'double' to 'float'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1026,44): warning C4305: 'function': truncation from 'double' to 'float'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1026,49): warning C4305: 'function': truncation from 'double' to 'float'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1026,54): warning C4305: 'function': truncation from 'double' to 'float'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1122,15): warning C4244: 'function': conversion from 'time_t' to 'unsigned int', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1158,31): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1159,31): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1192,58): warning C4244: 'function': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1201,48): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1207,58): warning C4244: 'function': conversion from 'double' to 'GLfloat', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1228,44): warning C4305: 'function': truncation from 'double' to 'float'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1250,83): warning C4305: 'function': truncation from 'double' to 'GLfloat'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1296,41): warning C4305: 'function': truncation from 'double' to 'GLfloat'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1304,40): warning C4305: 'function': truncation from 'double' to 'GLfloat'
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1155,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1156,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1182,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1186,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1229,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1230,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1293,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1301,1): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1315,14): warning C4101: 'z': unreferenced local variable
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1314,7): warning C4101: 'total': unreferenced local variable
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1314,25): warning C4101: 'camMatrix': unreferenced local variable
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1314,14): warning C4101: 'modelView': unreferenced local variable
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1315,11): warning C4101: 'y': unreferenced local variable
+  Generating Code...
+C:\Users\manal270.AD\source\repos\tsbk07\project\game.c(1315,8): warning C4101: 'x': unreferenced local variable
+LINK : warning LNK4075: ignoring '/INCREMENTAL' due to '/OPT:ICF' specification
+  tsbk07project.vcxproj -> C:\Users\manal270.AD\source\repos\tsbk07\project\Release\tsbk07project.exe

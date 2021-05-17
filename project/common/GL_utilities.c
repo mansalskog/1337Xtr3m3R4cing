@@ -72,7 +72,7 @@ void printShaderInfoLog(GLuint obj, const char *fn)
 	{
 //		fprintf(stderr, "[From %s:]\n", fn);
 		sprintf(msg, "[From %s:]\n", fn);
-#if defined(_WIN32)
+#if 0
 // VS friendly
 		OutputDebugStringA(msg);
 #else
@@ -80,7 +80,7 @@ void printShaderInfoLog(GLuint obj, const char *fn)
 #endif
 		infoLog = (char *)malloc(infologLength);
 		glGetShaderInfoLog(obj, infologLength, &charsWritten, infoLog);
-#if defined(_WIN32)
+#if 0
 		// VS friendly
 		OutputDebugStringA(infoLog);
 #else
@@ -115,7 +115,7 @@ void printProgramInfoLog(GLuint obj, const char *vfn, const char *ffn,
 		else
 			sprintf(msg, "[From %s+%s+%s+%s+%s:]\n", vfn, ffn, gfn, tcfn, tefn);
 		if (strlen(msg) > 1)
-#if defined(_WIN32)
+#if 0
 			// VS friendly
 			OutputDebugStringA(msg);
 #else
@@ -124,7 +124,7 @@ void printProgramInfoLog(GLuint obj, const char *vfn, const char *ffn,
 		infoLog = (char *)malloc(infologLength);
 		glGetProgramInfoLog(obj, infologLength, &charsWritten, infoLog);
 //		fprintf(stderr, "%s\n",infoLog);
-#if defined(_WIN32)
+#if 0
 		// VS friendly
 		OutputDebugStringA(infoLog);
 #else
