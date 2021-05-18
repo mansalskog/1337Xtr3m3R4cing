@@ -1386,11 +1386,13 @@ int main(int argc, char **argv)
 	glutCreateWindow("1337 Xtr3m3 R4c1ng");
 	glutDisplayFunc(display);
 	glutKeyboardFunc(keyboard);
+#if defined(_WIN32)
 	// glewExperimental = GL_TRUE;
 	if (glewInit() != GLEW_OK) {
 		fprintf(stderr, "GLEW is broken\n");
 		exit(-1337);
 	}
+#endif
 	init();
 	restart_game();
 	glutTimerFunc(20, &timer, 0);
